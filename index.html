@@ -78,6 +78,11 @@
   .qb-check{width:16px;flex:0 0 16px;font-weight:700;}
   .opt.attempt-wrong{background:var(--bad-bg);color:var(--bad);font-weight:600;border-radius:6px;padding:6px 8px;}
   .q-block.attempt-q-wrong{border-color:var(--bad);}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px;flex:none;}
+  .spinner-lg{width:32px;height:32px;border-width:3px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading-block{display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px 0;}
+  .loading-hint{font-size:12px;color:var(--muted);margin:0;}
   @media print{
     .no-print{display:none !important;}
     header{display:none !important;}
@@ -169,6 +174,24 @@ function loadNavState(){
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+// Small inline spinner + text, for use inside an existing <p>/<span> via innerHTML
+// (e.g. a status message next to a button) — so it's clear something is happening,
+// not stalled, during the ~5-30s Apps Script cold-start delay.
+function spinnerInlineHtml(text){
+  return `<span class="spinner"></span>${escapeHtml(text)}`;
+}
+// Full loading screen (spinner + message + optional hint line), for use as appEl.innerHTML
+// while blocking on the very first server round-trip (no cache to show yet).
+function loadingScreenHtml(text, hint){
+  return `<div class="card" style="max-width:420px;margin:40px auto;text-align:center;">
+    <div class="loading-block">
+      <div class="spinner spinner-lg"></div>
+      <p class="small muted" style="margin:0;">${escapeHtml(text)}</p>
+      ${hint ? `<p class="loading-hint">${escapeHtml(hint)}</p>` : ""}
+    </div>
+  </div>`;
+}
 function fmtDate(iso){ const d = new Date(iso); return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}); }
 function bandFor(percent){
   if (percent >= 90) return {label:"Отлично", cls:"good"};
@@ -242,6 +265,28 @@ function downloadHTML(content, filename){
 // the async boot sequence at the bottom of this script.
 let TESTS = [];
 let ROLES = [];
+
+// --- roles save queue (prevents race when checkboxes are clicked rapidly) ---
+let _rolesFlying = false;   // true while a saveRolesToServer request is in-flight
+let _rolesDirty  = false;   // true if ROLES changed again while request was in-flight
+let _rolesRerender = false; // true if renderAdmin() is needed after the queue drains
+
+async function enqueueRolesSave({ rerender = false } = {}) {
+  if (rerender) _rolesRerender = true;
+  if (_rolesFlying) { _rolesDirty = true; return; }
+  do {
+    _rolesDirty = false;
+    _rolesFlying = true;
+    const res = await saveRolesToServer(ROLES);
+    _rolesFlying = false;
+    if (!res.ok && res.reason !== "not-configured") {
+      alert("Не удалось сохранить роли: " + res.reason);
+      _rolesRerender = false;
+      return;
+    }
+  } while (_rolesDirty);
+  if (_rolesRerender) { _rolesRerender = false; renderAdmin(); }
+}
 
 async function fetchTestsFromServer(){
   const cfg = getSyncConfig();
@@ -677,7 +722,7 @@ function renderLogin(){
       // Not known on this computer — try the server before giving up, in case this
       // account was registered elsewhere and just never logged in from here before.
       if (!p && syncConfigured()){
-        msg.textContent = "На этом компьютере такого логина нет, проверяю на сервере…";
+        msg.innerHTML = spinnerInlineHtml("На этом компьютере такого логина нет, проверяю на сервере — это может занять до 30 секунд при первом заходе…");
         const res = await pullProfilesIntoLocalAuthStore();
         profiles = loadProfiles();
         p = profiles.find(x => x.login === login);
@@ -760,7 +805,11 @@ const GROUP_ORDER = ["kon_v2", "kon_v1", "tech", "sales"];
 function renderDashboard(){
   const s = getSession();
   const results = loadResults().filter(r => r.login === s.login).sort((a,b)=>b.dateISO.localeCompare(a.dateISO));
-  const visibleTests = hasFullAccess(s) ? getAllTests() : getVisibleTestsForRole(s.role || DEFAULT_ROLE_ID);
+  // Get fresh role from current profile instead of cached session (admin may have changed it)
+  const profiles = loadProfiles();
+  const currentProfile = profiles.find(p => p.login === s.login) || {};
+  const role = currentProfile.role || DEFAULT_ROLE_ID;
+  const visibleTests = hasFullAccess(s) ? getAllTests() : getVisibleTestsForRole(role);
   const groups = {};
   visibleTests.forEach(t => { (groups[t.group] = groups[t.group] || []).push(t); });
 
@@ -1005,7 +1054,15 @@ function renderTest(){
   };
 }
 
+let isFinishingTest = false;
 function finishTest(){
+  // Cheap insurance against a duplicate result row — in practice this function already
+  // can't run twice from a real double-click (confirm() blocks the event loop, and the
+  // whole function runs synchronously through render() swapping the button away before
+  // any network call starts), but guarding costs nothing and covers any future refactor
+  // that adds an await before that point.
+  if (isFinishingTest) return;
+  isFinishingTest = true;
   const t = currentTest;
   const s = getSession();
   const sectionStats = {};
@@ -1066,6 +1123,7 @@ function finishTest(){
   currentTest = null; currentAttempt = null;
   route = "result";
   render();
+  isFinishingTest = false; // safe to reset now — the "Завершить" button is gone from the DOM
   if (syncConfigured()){
     pushResultToServer(result).then(res => {
       lastSyncStatus = res.ok ? "sent" : "failed";
@@ -1197,7 +1255,10 @@ function renderAdmin(){
 
   const rolesList = getEffectiveRoles();
   const rolesHtml = rolesList.map(role => {
-    const testIds = new Set(role.testIds || []);
+    // Mirror getVisibleTestsForRole logic: non-array testIds means "all tests visible"
+    const testIds = Array.isArray(role.testIds)
+      ? new Set(role.testIds)
+      : new Set(allTestsList.map(t => t.id));
     const checkboxesHtml = allTestsList.map(t => `
       <label class="small" style="display:flex;align-items:center;gap:5px;">
         <input type="checkbox" class="role-test-cb" data-role="${escapeHtml(role.id)}" data-test="${escapeHtml(t.id)}" ${testIds.has(t.id) ? "checked" : ""}>
@@ -1424,53 +1485,44 @@ function renderAdmin(){
   };
 
   // ---------- roles: which tests each role sees (saved to the server on every change) ----------
+  // Optimistic update: ROLES is changed in-memory immediately (the checkbox already
+  // reflects the click visually), then enqueueRolesSave serialises the network writes
+  // so rapid clicks never race and overwrite each other on the server.
   appEl.querySelectorAll(".role-test-cb").forEach(cb => {
-    cb.onchange = async () => {
-      const roles = getEffectiveRoles().map(r => ({...r, testIds: [...(r.testIds || [])]}));
+    cb.onchange = () => {
+      const roles = ROLES.map(r => ({...r, testIds: [...(r.testIds || [])]}));
       const role = roles.find(r => r.id === cb.dataset.role);
       if (!role) return;
       const testId = cb.dataset.test;
       if (cb.checked){ if (!role.testIds.includes(testId)) role.testIds.push(testId); }
       else { role.testIds = role.testIds.filter(id => id !== testId); }
-      cb.disabled = true;
-      const res = await saveRolesToServer(roles);
-      if (!res.ok){ alert("Не удалось сохранить роль: " + res.reason); cb.disabled = false; return; }
       ROLES = roles;
-      renderAdmin();
+      enqueueRolesSave(); // no rerender — checkbox visual state is already correct
     };
   });
   appEl.querySelectorAll(".role-name-input").forEach(inp => {
-    inp.onchange = async () => {
-      const roles = getEffectiveRoles().map(r => ({...r}));
+    inp.onchange = () => {
+      const roles = ROLES.map(r => ({...r}));
       const role = roles.find(r => r.id === inp.dataset.role);
       if (!role) return;
       role.name = inp.value.trim() || role.name;
-      const res = await saveRolesToServer(roles);
-      if (!res.ok){ alert("Не удалось сохранить роль: " + res.reason); return; }
       ROLES = roles;
-      renderAdmin();
+      enqueueRolesSave(); // no rerender — name is already visible in the input field
     };
   });
   const addRoleBtn = document.getElementById("btnAddRole");
-  if (addRoleBtn) addRoleBtn.onclick = async () => {
+  if (addRoleBtn) addRoleBtn.onclick = () => {
     const name = prompt("Название новой роли:");
     if (!name || !name.trim()) return;
-    const roles = getEffectiveRoles().map(r => ({...r}));
     const id = "role_" + Date.now().toString(36);
-    roles.push({id, name: name.trim(), testIds: []});
-    const res = await saveRolesToServer(roles);
-    if (!res.ok){ alert("Не удалось создать роль: " + res.reason); return; }
-    ROLES = roles;
-    renderAdmin();
+    ROLES = [...ROLES, {id, name: name.trim(), testIds: []}];
+    enqueueRolesSave({ rerender: true }); // rerender needed to show the new role's checkboxes
   };
   appEl.querySelectorAll("[data-del-role]").forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = () => {
       const roleId = btn.dataset.delRole;
       if (!confirm("Удалить эту роль? Пользователи с этой ролью будут переведены на роль «Пользователь».")) return;
-      const roles = getEffectiveRoles().filter(r => r.id !== roleId).map(r => ({...r}));
-      const res = await saveRolesToServer(roles);
-      if (!res.ok){ alert("Не удалось удалить роль: " + res.reason); return; }
-      ROLES = roles;
+      ROLES = ROLES.filter(r => r.id !== roleId).map(r => ({...r}));
       // Reassign anyone on this role, in every local cache, so nothing keeps pointing at
       // a role id that no longer exists — then push each reassigned user to the server.
       [loadProfiles(), loadSyncedProfiles()].forEach((list, i) => {
@@ -1478,7 +1530,7 @@ function renderAdmin(){
         list.forEach(p => { if (p.role === roleId){ p.role = DEFAULT_ROLE_ID; changed = true; pushProfileToServer(p); } });
         if (changed) (i === 0 ? saveProfiles : saveSyncedProfiles)(list);
       });
-      renderAdmin();
+      enqueueRolesSave({ rerender: true }); // rerender to remove the deleted role's card
     };
   });
   appEl.querySelectorAll(".user-role-select").forEach(sel => {
@@ -1561,11 +1613,15 @@ async function saveQbEdit(){
 
   const t = getAllTests().find(x => x.id === qbankTestId);
   const sec = t.sections.find(s => s.title === qbankEditing.sectionTitle);
-  // 1-based (not the raw 0-based array index) — matches how questions are numbered
-  // everywhere else in the app and in the Questions sheet itself.
-  const sectionOrder = t.sections.indexOf(sec) + 1;
   const isNew = qbankEditing.id === null;
-  const questionOrder = (isNew ? sec.questions.length : sec.questions.findIndex(q => q.id === qbankEditing.id)) + 1;
+  // localIdx stays 0-based — it indexes the actual JS array (sec.questions). questionOrder
+  // sent to the server is 1-based (matches how questions are numbered everywhere else in
+  // the app and in the Questions sheet itself) — the two must NOT be conflated, or saving
+  // an edit overwrites the wrong question in this browser's own in-memory copy until the
+  // next reload (the server itself stays correct, since it upserts by id, not by index).
+  const localIdx = isNew ? -1 : sec.questions.findIndex(q => q.id === qbankEditing.id);
+  const sectionOrder = t.sections.indexOf(sec) + 1;
+  const questionOrder = (isNew ? sec.questions.length : localIdx) + 1;
 
   msg.style.color = "var(--muted)"; msg.textContent = "Сохраняю…";
   const saveBtn = document.getElementById("qbSave"); if (saveBtn) saveBtn.disabled = true;
@@ -1581,7 +1637,7 @@ async function saveQbEdit(){
   }
   const newQ = { id: res.id, q: qText, options, correct };
   if (isNew) sec.questions.push(newQ);
-  else sec.questions[questionOrder] = newQ;
+  else sec.questions[localIdx] = newQ;
   t.totalQuestions = t.sections.reduce((a,s)=>a+s.questions.length, 0);
   qbankEditing = null;
   rerenderQbankPreservingScroll();
@@ -1984,34 +2040,23 @@ function renderAttemptDetail(){
 const LS_TESTS_CACHE = "att_tests_cache_v1";
 const LS_ROLES_CACHE = "att_roles_cache_v1";
 
-async function bootApp(){
-  if (syncConfigured()){
-    appEl.innerHTML = `<div class="card" style="max-width:420px;margin:40px auto;text-align:center;"><p class="small muted">Загружаю тесты…</p></div>`;
-    const [testsRes, rolesRes] = await Promise.all([fetchTestsFromServer(), fetchRolesFromServer()]);
-    if (testsRes.ok) localStorage.setItem(LS_TESTS_CACHE, JSON.stringify(TESTS));
-    else { try { TESTS = JSON.parse(localStorage.getItem(LS_TESTS_CACHE)) || []; } catch(e){ TESTS = []; } }
-    if (rolesRes.ok) localStorage.setItem(LS_ROLES_CACHE, JSON.stringify(ROLES));
-    else { try { ROLES = JSON.parse(localStorage.getItem(LS_ROLES_CACHE)) || []; } catch(e){ ROLES = []; } }
+// Fetches tests+roles and caches whatever succeeded; never touches TESTS/ROLES for the
+// half that failed (leaves the caller's current in-memory value, cache or otherwise, alone).
+async function fetchAndCacheTestsAndRoles(){
+  const [testsRes, rolesRes] = await Promise.all([fetchTestsFromServer(), fetchRolesFromServer()]);
+  if (testsRes.ok) localStorage.setItem(LS_TESTS_CACHE, JSON.stringify(TESTS));
+  if (rolesRes.ok) localStorage.setItem(LS_ROLES_CACHE, JSON.stringify(ROLES));
+  return {testsRes, rolesRes};
+}
 
-    if (!testsRes.ok && !TESTS.length){
-      appEl.innerHTML = `
-        <div class="card" style="max-width:480px;margin:40px auto;">
-          <h2>Не удалось загрузить тесты</h2>
-          <p class="small" style="color:var(--bad);">${escapeHtml(testsRes.reason || "")}</p>
-          <p class="small muted">Проверьте интернет-соединение и повторите.</p>
-          <button class="btn" id="btnRetryBoot">Повторить</button>
-        </div>`;
-      document.getElementById("btnRetryBoot").onclick = () => bootApp();
-      return;
-    }
-  }
-
+// Restores route/dashboardGroup/qbankTestId/etc. from the session + saved nav state.
+// If the tab reloaded on its own (see saveNavState above) while an admin screen was
+// open, go back there instead of dropping to the admin home screen. Routes with no
+// meaningful state to resume (an in-progress test, a just-submitted result) fall back
+// to the dashboard — an in-progress test attempt has its own resume prompt there.
+function routeFromSession(){
   const s0 = getSession();
   if (s0){
-    // If the tab reloaded on its own (see saveNavState above) while an admin screen was
-    // open, go back there instead of dropping to the admin home screen. Routes with no
-    // meaningful state to resume (an in-progress test, a just-submitted result) fall back
-    // to the dashboard — an in-progress test attempt has its own resume prompt there.
     const nav = loadNavState();
     const restorableRoutes = ["admin", "qbank", "attemptDetail", "dashboard"];
     if (nav && restorableRoutes.includes(nav.route)){
@@ -2026,6 +2071,58 @@ async function bootApp(){
   } else {
     route = "login";
   }
+}
+
+// After painting from cache, quietly re-fetch and re-render only if something actually
+// changed, and only on screens where swapping data under the user is safe — never during
+// test-taking/result review, and never on the login screen (would wipe a half-typed
+// login/password out from under the user's fingers).
+async function refreshTestsAndRolesInBackground(){
+  const prevTests = JSON.stringify(TESTS);
+  const prevRoles = JSON.stringify(ROLES);
+  const {testsRes, rolesRes} = await fetchAndCacheTestsAndRoles();
+  const changed = (testsRes.ok && JSON.stringify(TESTS) !== prevTests) ||
+                  (rolesRes.ok && JSON.stringify(ROLES) !== prevRoles);
+  const safeRoutes = ["dashboard", "admin", "qbank"];
+  if (changed && safeRoutes.includes(route)) render();
+}
+
+async function bootApp(){
+  if (syncConfigured()){
+    let cachedTests = null, cachedRoles = null;
+    try { cachedTests = JSON.parse(localStorage.getItem(LS_TESTS_CACHE)); } catch(e){}
+    try { cachedRoles = JSON.parse(localStorage.getItem(LS_ROLES_CACHE)); } catch(e){}
+
+    if (Array.isArray(cachedTests) && cachedTests.length){
+      // Cache-first: paint immediately with what we have, refresh silently in the
+      // background — the ~5-30s Apps Script cold start no longer blocks the first paint.
+      TESTS = cachedTests;
+      ROLES = Array.isArray(cachedRoles) ? cachedRoles : [];
+      routeFromSession();
+      render();
+      refreshTestsAndRolesInBackground();
+      return;
+    }
+
+    // No usable cache yet (first-ever load on this device/browser) — nothing to show,
+    // so this one has to actually wait for the server. Make that wait visible.
+    appEl.innerHTML = loadingScreenHtml("Загружаю тесты…", "Это может занять до 30 секунд при первом заходе за день — сервер «просыпается».");
+    const {testsRes} = await fetchAndCacheTestsAndRoles();
+
+    if (!testsRes.ok && !TESTS.length){
+      appEl.innerHTML = `
+        <div class="card" style="max-width:480px;margin:40px auto;">
+          <h2>Не удалось загрузить тесты</h2>
+          <p class="small" style="color:var(--bad);">${escapeHtml(testsRes.reason || "")}</p>
+          <p class="small muted">Проверьте интернет-соединение и повторите.</p>
+          <button class="btn" id="btnRetryBoot">Повторить</button>
+        </div>`;
+      document.getElementById("btnRetryBoot").onclick = () => bootApp();
+      return;
+    }
+  }
+
+  routeFromSession();
   render();
 }
 
