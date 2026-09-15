@@ -1,0 +1,2035 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Аттестация — тестирование персонала</title>
+<style>
+  :root{
+    --bg:#f4f6f9; --panel:#ffffff; --border:#dde3ea; --text:#1c2733; --muted:#647082;
+    --accent:#2563eb; --accent-dark:#1d4ed8; --good:#16a34a; --warn:#d97706; --bad:#dc2626;
+    --good-bg:#eafaf0; --warn-bg:#fff7e6; --bad-bg:#fdecec;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:var(--panel);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
+  header h1{font-size:18px;margin:0;}
+  header .who{font-size:13px;color:var(--muted);display:flex;gap:12px;align-items:center;}
+  header button{background:none;border:1px solid var(--border);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--text);}
+  header button:hover{background:var(--bg);}
+  main{max-width:980px;margin:0 auto;padding:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:20px;}
+  h2{margin-top:0;font-size:20px;}
+  h3{font-size:16px;margin:18px 0 8px;}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px;}
+  input[type=text],input[type=password]{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:6px;font-size:14px;margin-bottom:14px;}
+  .btn{display:inline-block;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:10px 18px;font-size:14px;cursor:pointer;}
+  .btn:hover{background:var(--accent-dark);}
+  .btn.secondary{background:none;color:var(--accent);border:1px solid var(--accent);}
+  .btn.secondary:hover{background:#eef4ff;}
+  .btn.ghost{background:none;color:var(--muted);border:1px solid var(--border);}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+  .test-tile{border:1px solid var(--border);border-radius:8px;padding:14px;cursor:pointer;background:#fafcff;}
+  .test-tile:hover{border-color:var(--accent);}
+  .test-tile .grp{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.03em;}
+  .test-tile .lbl{font-size:16px;font-weight:600;margin:4px 0;}
+  .test-tile .meta{font-size:12px;color:var(--muted);}
+  .test-tile.locked{cursor:not-allowed;background:#f4f5f7;opacity:.72;}
+  .test-tile.locked:hover{border-color:var(--border);}
+  .test-tile .lock-note{font-size:12px;color:var(--warn);margin-top:6px;}
+  .group-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;}
+  .group-tile{border:1px solid var(--border);border-radius:10px;padding:22px 18px;cursor:pointer;background:#fafcff;text-align:left;}
+  .group-tile:hover{border-color:var(--accent);}
+  .group-tile .g-title{font-size:18px;font-weight:700;margin-bottom:6px;}
+  .group-tile .g-desc{font-size:13px;color:var(--muted);line-height:1.4;}
+  .back-link{display:inline-block;margin-bottom:14px;background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;padding:0;}
+  .back-link:hover{text-decoration:underline;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;}
+  .pill.good{background:var(--good-bg);color:var(--good);}
+  .pill.warn{background:var(--warn-bg);color:var(--warn);}
+  .pill.bad{background:var(--bad-bg);color:var(--bad);}
+  .q-block{border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px;}
+  .q-num{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .q-text{font-size:15px;font-weight:600;margin-bottom:10px;}
+  .q-hint{font-size:12px;color:var(--muted);font-style:italic;margin-bottom:10px;}
+  .opt{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:14px;cursor:pointer;}
+  .opt input{margin-top:3px;}
+  .progress-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:18px;}
+  .progress-bar > div{height:100%;background:var(--accent);}
+  .sticky-actions{position:sticky;bottom:0;background:var(--bg);padding:14px 0;border-top:1px solid var(--border);margin-top:6px;}
+  .muted{color:var(--muted);}
+  .section-title{margin-top:26px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:6px;}
+  .tabs{display:flex;gap:6px;margin-bottom:18px;}
+  .tab{padding:8px 16px;border-radius:6px 6px 0 0;cursor:pointer;font-size:14px;color:var(--muted);border:1px solid transparent;}
+  .tab.active{background:var(--panel);border:1px solid var(--border);border-bottom-color:var(--panel);color:var(--text);font-weight:600;margin-bottom:-1px;}
+  [hidden]{display:none !important;}
+  .score-big{font-size:44px;font-weight:700;}
+  .band-good{color:var(--good);} .band-warn{color:var(--warn);} .band-bad{color:var(--bad);}
+  .filebox{border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;color:var(--muted);font-size:13px;}
+  .small{font-size:12px;color:var(--muted);}
+  .footer-note{font-size:12px;color:var(--muted);margin-top:24px;line-height:1.5;}
+  select{padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;}
+  .opt.qb-correct{background:var(--good-bg);color:var(--good);font-weight:600;border-radius:6px;padding:6px 8px;}
+  .qb-check{width:16px;flex:0 0 16px;font-weight:700;}
+  .opt.attempt-wrong{background:var(--bad-bg);color:var(--bad);font-weight:600;border-radius:6px;padding:6px 8px;}
+  .q-block.attempt-q-wrong{border-color:var(--bad);}
+  @media print{
+    .no-print{display:none !important;}
+    header{display:none !important;}
+    body{background:#fff;}
+    .card{border:none;box-shadow:none;padding:0;margin-bottom:16px;break-inside:avoid;}
+    .q-block{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Аттестация — тестирование персонала</h1>
+  <div class="who" id="whoBox"></div>
+</header>
+
+<main id="app"></main>
+
+<script>
+
+// ---------- storage helpers ----------
+const LS_PROFILES = "att_profiles_v1";
+const LS_SYNCED_PROFILES = "att_synced_profiles_v1"; // other users' profiles pulled from the server (admin view)
+const LS_RESULTS = "att_results_v1";
+const LS_SESSION = "att_session_v1";
+const LS_ADMIN = "att_admin_ok_v1";
+const LS_DELETED_IDS = "att_deleted_ids_v1";
+const LS_INPROGRESS = "att_inprogress_v1";
+const LS_NAV_STATE = "att_nav_state_v1";
+const DEFAULT_ROLE_ID = "user";
+const ADMIN_PASSWORD = "655356012";
+
+function loadProfiles(){ try{ return JSON.parse(localStorage.getItem(LS_PROFILES)) || []; }catch(e){ return []; } }
+function saveProfiles(p){ localStorage.setItem(LS_PROFILES, JSON.stringify(p)); }
+function loadSyncedProfiles(){ try{ return JSON.parse(localStorage.getItem(LS_SYNCED_PROFILES)) || []; }catch(e){ return []; } }
+function saveSyncedProfiles(p){ localStorage.setItem(LS_SYNCED_PROFILES, JSON.stringify(p)); }
+function loadResults(){ try{ return JSON.parse(localStorage.getItem(LS_RESULTS)) || []; }catch(e){ return []; } }
+// Ids the admin explicitly deleted, so a later "Синхронизировать сейчас" pull doesn't
+// silently resurrect them from the server (e.g. if the server-side delete failed/lagged).
+function loadDeletedIds(){ try{ return JSON.parse(localStorage.getItem(LS_DELETED_IDS)) || []; }catch(e){ return []; } }
+function addDeletedId(id){ const d = loadDeletedIds(); if (!d.includes(id)) d.push(id); localStorage.setItem(LS_DELETED_IDS, JSON.stringify(d)); }
+function saveResults(r){ localStorage.setItem(LS_RESULTS, JSON.stringify(r)); }
+function getSession(){ try{ return JSON.parse(localStorage.getItem(LS_SESSION)); }catch(e){ return null; } }
+function setSession(s){ if(s) localStorage.setItem(LS_SESSION, JSON.stringify(s)); else localStorage.removeItem(LS_SESSION); }
+
+// ---------- in-progress test attempts (resume support) ----------
+// Keyed by "login::testId" so an interrupted/closed-tab attempt can be picked back up
+// later — including the exact shuffled option order, so saved answer indices still
+// point at the right options on resume.
+function loadInProgressMap(){ try{ return JSON.parse(localStorage.getItem(LS_INPROGRESS)) || {}; }catch(e){ return {}; } }
+function saveInProgressMap(m){ localStorage.setItem(LS_INPROGRESS, JSON.stringify(m)); }
+function inProgressKey(login, testId){ return login + "::" + testId; }
+function getInProgress(login, testId){ return loadInProgressMap()[inProgressKey(login, testId)] || null; }
+function clearInProgress(login, testId){ const m = loadInProgressMap(); delete m[inProgressKey(login, testId)]; saveInProgressMap(m); }
+function saveCurrentProgress(){
+  if (!currentTest || !currentAttempt) return;
+  const s = getSession();
+  if (!s) return;
+  const m = loadInProgressMap();
+  m[inProgressKey(s.login, currentTest.id)] = {
+    testId: currentTest.id,
+    flat: currentTest.flat.map(q => ({
+      sectionTitle: q.sectionTitle, q: q.q, displayOptions: q.displayOptions,
+      correctIdx: [...q.correctSet], isMulti: q.isMulti,
+    })),
+    answers: currentAttempt.answers.map(a => [...a]),
+    idx: currentAttempt.idx,
+    startedAt: currentAttempt.startedAt,
+    savedAt: Date.now(),
+  };
+  saveInProgressMap(m);
+}
+function isAdmin(){ return sessionStorage.getItem(LS_ADMIN) === "1"; }
+
+// Remembers which admin screen (and which test/attempt within it) is open, per tab, so
+// that if the browser reloads this tab on its own (memory-saver tab discarding, an
+// accidental refresh) the admin lands back where they were instead of the admin home
+// screen and having to re-open the test/attempt they were looking at.
+function saveNavState(){
+  try {
+    sessionStorage.setItem(LS_NAV_STATE, JSON.stringify({
+      route, dashboardGroup, qbankTestId, attemptDetailId, attemptDetailBack,
+    }));
+  } catch(e){}
+}
+function loadNavState(){
+  try { return JSON.parse(sessionStorage.getItem(LS_NAV_STATE)); } catch(e){ return null; }
+}
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmtDate(iso){ const d = new Date(iso); return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}); }
+function bandFor(percent){
+  if (percent >= 90) return {label:"Отлично", cls:"good"};
+  if (percent >= 75) return {label:"Хорошо", cls:"good"};
+  if (percent >= 60) return {label:"Удовлетворительно (условно)", cls:"warn"};
+  return {label:"Неудовлетворительно", cls:"bad"};
+}
+const PASS_PERCENT = 60; // minimum "уд" (Удовлетворительно) grade required to unlock advanced testing
+
+// ---------- access levels: primary (kon_v2) -> advanced (kon_v1) gating ----------
+// A handful of named accounts get unrestricted access to every test (including advanced
+// tests) without having to clear the primary test first.
+const FULL_ACCESS_FULLNAMES = ["Соловьев Евгений", "БАС"];
+function hasFullAccess(session){
+  if (!session) return false;
+  const name = String(session.fullName || "").trim().toLowerCase();
+  return FULL_ACCESS_FULLNAMES.some(n => n.trim().toLowerCase() === name);
+}
+// Advanced test id "kon_v1_cat3" -> its primary-test counterpart "kon_v2_cat3".
+function primaryTestIdFor(advancedTestId){
+  return advancedTestId.replace(/^kon_v1_/, "kon_v2_");
+}
+function hasPassedPrimary(loginResults, advancedTestId){
+  const primaryId = primaryTestIdFor(advancedTestId);
+  return loginResults.some(r => r.testId === primaryId && r.percent >= PASS_PERCENT);
+}
+// True if this test should be locked for this session right now.
+function isTestLocked(test, session, loginResults){
+  if (test.group !== "kon_v1") return false; // gating only applies to advanced testing
+  if (hasFullAccess(session)) return false;
+  return !hasPassedPrimary(loginResults, test.id);
+}
+function shuffle(arr){
+  const a = arr.slice();
+  for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function downloadJSON(obj, filename){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+function downloadCSV(rows, filename){
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(",")).join("\r\n");
+  const blob = new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+function downloadHTML(content, filename){
+  const blob = new Blob([content], {type:"text/html;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+
+// ---------- question bank + roles: live on the server (Google Sheet) ----------
+// TESTS and ROLES used to be baked into this file and edited via local-only overrides
+// that had to be shipped to everyone else by hand (download a regenerated file, replace
+// it on every computer). Now they're fetched from the server on load and every admin
+// edit (question save/delete, whole-test upload/delete, role change) posts straight back
+// to it — so anyone who (re)loads the app afterwards sees the same, current data with
+// nothing to redistribute. See fetchTestsFromServer()/fetchRolesFromServer() below and
+// the async boot sequence at the bottom of this script.
+let TESTS = [];
+let ROLES = [];
+
+async function fetchTestsFromServer(){
+  const cfg = getSyncConfig();
+  if (!cfg.url) return {ok:false, reason:"not-configured"};
+  try {
+    const resp = await fetch(cfg.url + "?secret=" + encodeURIComponent(cfg.secret) + "&type=tests");
+    const data = await resp.json();
+    if (!data.ok) return {ok:false, reason: data.error || "server error"};
+    TESTS = data.tests || [];
+    return {ok:true};
+  } catch(e){
+    return {ok:false, reason: String(e && e.message || e)};
+  }
+}
+async function fetchRolesFromServer(){
+  const cfg = getSyncConfig();
+  if (!cfg.url) return {ok:false, reason:"not-configured"};
+  try {
+    const resp = await fetch(cfg.url + "?secret=" + encodeURIComponent(cfg.secret) + "&type=roles");
+    const data = await resp.json();
+    if (!data.ok) return {ok:false, reason: data.error || "server error"};
+    ROLES = data.roles || [];
+    return {ok:true};
+  } catch(e){
+    return {ok:false, reason: String(e && e.message || e)};
+  }
+}
+async function postToServer(body){
+  const cfg = getSyncConfig();
+  if (!cfg.url) return {ok:false, reason:"not-configured"};
+  try {
+    const resp = await fetch(cfg.url, {
+      method: "POST",
+      headers: {"Content-Type": "text/plain;charset=utf-8"}, // avoids CORS preflight against Apps Script
+      body: JSON.stringify({secret: cfg.secret, ...body}),
+      mode: "cors",
+    });
+    const data = await resp.json();
+    if (!data.ok) return {ok:false, reason: data.error || "server error"};
+    return data;
+  } catch(e){
+    return {ok:false, reason: String(e && e.message || e)};
+  }
+}
+const saveQuestionToServer = (question) => postToServer({saveQuestion: question});
+const deleteQuestionFromServer = (id) => postToServer({deleteQuestion: id});
+const saveTestToServer = (test) => postToServer({saveTest: test});
+const deleteTestFromServer = (id) => postToServer({deleteTest: id});
+const saveRolesToServer = (roles) => postToServer({saveRoles: roles});
+
+function getAllTests(){ return TESTS; }
+// Kept as a passthrough — every call site already expects "the effective version of a
+// test" as a concept, and now that TESTS itself is always the live server copy, that's
+// simply the test object as-is.
+function getEffectiveTest(t){ return t; }
+
+function getEffectiveRoles(){ return ROLES; }
+function getRoleById(id){ return ROLES.find(r => r.id === id) || ROLES[0]; }
+// Intersects a role's saved test ids with tests that still actually exist — a role can
+// reference a test deleted since, or simply predate one added since it was last saved.
+function getVisibleTestsForRole(roleId){
+  const role = getRoleById(roleId);
+  if (!role || !Array.isArray(role.testIds)) return TESTS;
+  const idSet = new Set(role.testIds);
+  return TESTS.filter(t => idSet.has(t.id));
+}
+
+// Deletes a test on the server and drops it from the in-memory copy. Results tied to it
+// keep their own copy of testLabel etc. and stay readable; only the test itself (and the
+// ability to start a new attempt of it) goes away.
+async function deleteTest(id){
+  const res = await deleteTestFromServer(id);
+  if (res.ok) TESTS = TESTS.filter(t => t.id !== id);
+  return res;
+}
+
+function slugify(s){
+  return String(s).toLowerCase()
+    .replace(/[^a-zа-я0-9]+/gi, "_")
+    .replace(/^_+|_+$/g, "") || "test";
+}
+function uniqueTestId(base){
+  const existingIds = new Set(getAllTests().map(t => t.id));
+  let id = "custom_" + slugify(base);
+  let n = 2;
+  while (existingIds.has(id)){ id = "custom_" + slugify(base) + "_" + n; n++; }
+  return id;
+}
+
+// Validates one uploaded test object (the shape the admin's JSON file must match).
+// Returns {ok:true, test} or {ok:false, errors:[...]}. Does not mutate `raw`.
+function validateCustomTestObj(raw, indexLabel){
+  const errors = [];
+  const pfx = indexLabel ? `[${indexLabel}] ` : "";
+  if (!raw || typeof raw !== "object") return { ok:false, errors:[pfx + "не объект JSON"] };
+  const positionTitle = String(raw.positionTitle || "").trim();
+  const label = String(raw.label || "").trim();
+  if (!positionTitle) errors.push(pfx + "не указано «positionTitle» (должность)");
+  if (!label) errors.push(pfx + "не указано «label» (категория/уровень)");
+  const timeMinutes = raw.timeMinutes !== undefined ? Number(raw.timeMinutes) : 60;
+  if (!Number.isFinite(timeMinutes) || timeMinutes <= 0) errors.push(pfx + "«timeMinutes» должно быть положительным числом");
+  if (!Array.isArray(raw.sections) || raw.sections.length === 0){
+    errors.push(pfx + "нет разделов «sections» (должен быть непустой массив)");
+    return { ok:false, errors };
+  }
+  const sections = [];
+  raw.sections.forEach((sec, si) => {
+    const sTitle = String((sec && sec.title) || "").trim();
+    const sPfx = `${pfx}раздел ${si+1}${sTitle ? " «" + sTitle + "»" : ""}: `;
+    if (!sTitle) errors.push(sPfx + "не указан «title»");
+    if (!sec || !Array.isArray(sec.questions) || sec.questions.length === 0){
+      errors.push(sPfx + "нет вопросов «questions»");
+      return;
+    }
+    const questions = [];
+    sec.questions.forEach((q, qi) => {
+      const qPfx = `${sPfx}вопрос ${qi+1}: `;
+      const qText = String((q && q.q) || "").trim();
+      if (!qText){ errors.push(qPfx + "не указан текст вопроса «q»"); return; }
+      const options = Array.isArray(q.options) ? q.options.map(o => String(o).trim()) : [];
+      if (options.length !== 8){ errors.push(qPfx + "должно быть ровно 8 вариантов «options» (сейчас " + options.length + ")"); return; }
+      if (options.some(o => !o)){ errors.push(qPfx + "не все варианты заполнены"); return; }
+      if (new Set(options).size !== 8){ errors.push(qPfx + "варианты должны быть уникальными"); return; }
+      const correct = Array.isArray(q.correct) ? q.correct.map(Number) : [];
+      if (!correct.length){ errors.push(qPfx + "не указан «correct» (индексы верных вариантов)"); return; }
+      if (correct.some(ci => !Number.isInteger(ci) || ci < 0 || ci > 7)){ errors.push(qPfx + "«correct» содержит недопустимый индекс (должны быть числа 0–7)"); return; }
+      questions.push({ q: qText, options, correct: [...new Set(correct)].sort((a,b)=>a-b) });
+    });
+    if (questions.length) sections.push({ title: sTitle, questions });
+  });
+  if (errors.length) return { ok:false, errors };
+  const groupLabel = String(raw.groupLabel || positionTitle).trim();
+  const group = raw.group ? String(raw.group).trim() : uniqueTestId(positionTitle);
+  return {
+    ok: true,
+    test: {
+      id: uniqueTestId(positionTitle + "_" + label),
+      group, groupLabel, label, positionTitle, timeMinutes,
+      sections,
+    },
+  };
+}
+
+function customTestTemplate(){
+  return {
+    _instructions: "Это шаблон для своего теста. Удалите это поле (необязательно, оно игнорируется). positionTitle — должность; label — категория/уровень (например «2 категория» или «Ведущий»); groupLabel — заголовок группы на панели сотрудника (тесты с одинаковым «group» показываются вместе, group можно не указывать); timeMinutes — время на тест в минутах. В каждом разделе sections — questions: у каждого вопроса РОВНО 8 уникальных вариантов options и correct — список индексов (с 0) верных вариантов (обычно один, можно несколько).",
+    positionTitle: "Оператор ЧПУ",
+    label: "2 категория",
+    groupLabel: "Оператор ЧПУ",
+    timeMinutes: 60,
+    sections: [
+      {
+        title: "1. Пример раздела",
+        questions: [
+          {
+            q: "Пример вопроса — что означает аббревиатура ЧПУ?",
+            options: [
+              "Числовое программное управление",
+              "Централизованное производственное управление",
+              "Числовой профиль установки",
+              "Частотно-переменное управление",
+              "Централизованный пульт управления",
+              "Числовая программа учёта",
+              "Программируемое управляющее устройство",
+              "Цифровой пульт управления",
+            ],
+            correct: [0],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+// ---------- server sync (Google Sheets via Apps Script Web App) ----------
+// SYNC_CONFIG_DEFAULT.url is baked into this file before distributing it to employees,
+// so results are pushed automatically without anyone touching settings. Until it's set,
+// the app falls back silently to the local export/import flow.
+const SYNC_CONFIG_DEFAULT = { url: "https://script.google.com/macros/s/AKfycbwYt3LC3pYx0qtiJUE_vLtst_PpQQ_G9B7wI3vM39zUcjF0U6gnLugOnKRup-E8c_V27A/exec", secret: "beretta-sync-2026-x7f2" };
+const LS_SYNC_OVERRIDE = "att_sync_cfg_override_v1";
+
+function getSyncConfig(){
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_SYNC_OVERRIDE));
+    if (o && o.url) return o;
+  } catch(e){}
+  return SYNC_CONFIG_DEFAULT;
+}
+function setSyncOverride(cfg){ localStorage.setItem(LS_SYNC_OVERRIDE, JSON.stringify(cfg)); }
+function syncConfigured(){ const c = getSyncConfig(); return !!(c && c.url); }
+
+async function pushResultToServer(result){
+  const cfg = getSyncConfig();
+  if (!cfg.url) return {ok:false, reason:"not-configured"};
+  try {
+    await fetch(cfg.url, {
+      method: "POST",
+      headers: {"Content-Type": "text/plain;charset=utf-8"}, // avoids CORS preflight against Apps Script
+      body: JSON.stringify({secret: cfg.secret, result}),
+      mode: "cors",
+    });
+    return {ok:true};
+  } catch(e){
+    return {ok:false, reason: String(e && e.message || e)};
+  }
+}
+
+async function deleteResultFromServer(id){
+  const cfg = getSyncConfig();
+  if (!cfg.url) return {ok:false, reason:"not-configured"};
+  try {
+    const resp = await fetch(cfg.url, {
+      method: "POST",
+      headers: {"Content-Type": "text/plain;charset=utf-8"}, // avoids CORS preflight against Apps Script
+      body: JSON.stringify({secret: cfg.secret, deleteId: id}),
+      mode: "cors",
+    });
+    const data = await resp.json();
+    if (!data.ok) return {ok:false, reason: data.error || "server error"};
+    return {ok:true};
+  } catch(e){
+    return {ok:false, reason: String(e && e.message || e)};
+  }
+}
+
+async function pullResultsFromServer(){
+  const cfg = getSyncConfig();
+  if (!cfg.url) return {ok:false, reason:"not-configured"};
+  try {
+    const resp = await fetch(cfg.url + "?secret=" + encodeURIComponent(cfg.secret));
+    const data = await resp.json();
+    if (!data.ok) return {ok:false, reason: data.error || "server error"};
+    const store = loadResults();
+    const ids = new Set(store.map(x=>x.id));
+    const deletedIds = new Set(loadDeletedIds());
+    let imported = 0;
+    (data.results || []).forEach(raw => {
+      if (!raw || !raw.id || ids.has(raw.id) || deletedIds.has(raw.id)) return;
+      const rec = {
+        id: raw.id, login: raw.login, fullName: raw.fullName, testId: raw.testId,
+        testLabel: raw.testLabel, label: raw.label, group: raw.group, groupLabel: raw.groupLabel,
+        dateISO: raw.dateISO, totalQuestions: Number(raw.totalQuestions), correctCount: Number(raw.correctCount),
+        percent: Number(raw.percent), bandLabel: raw.bandLabel, durationSec: Number(raw.durationSec),
+        sections: typeof raw.sections === "string" ? JSON.parse(raw.sections) : raw.sections,
+        details: typeof raw.details === "string" ? JSON.parse(raw.details) : (raw.details || []),
+      };
+      store.push(rec); ids.add(rec.id); imported++;
+    });
+    saveResults(store);
+    return {ok:true, imported};
+  } catch(e){
+    return {ok:false, reason: String(e && e.message || e)};
+  }
+}
+
+// Sends a user profile (login/password/fullName/createdAt) to the server so the admin
+// can see it from any browser. Fire-and-forget from the caller's point of view — a
+// failure here just means the admin won't see this account until the next successful
+// sync; the local login itself (LS_PROFILES) is unaffected either way.
+async function pushProfileToServer(profile){
+  const cfg = getSyncConfig();
+  if (!cfg.url) return {ok:false, reason:"not-configured"};
+  try {
+    await fetch(cfg.url, {
+      method: "POST",
+      headers: {"Content-Type": "text/plain;charset=utf-8"}, // avoids CORS preflight against Apps Script
+      body: JSON.stringify({secret: cfg.secret, profile}),
+      mode: "cors",
+    });
+    return {ok:true};
+  } catch(e){
+    return {ok:false, reason: String(e && e.message || e)};
+  }
+}
+
+// Used when a login isn't found in this browser's own profile store — e.g. someone
+// logging in on a different computer than the one they registered on, where the local
+// LS_PROFILES here has never heard of that account. Pulls the full user list from the
+// server and merges it into the LOCAL auth store (not just the admin's read-only synced
+// copy), so the login check right after this can find it.
+async function pullProfilesIntoLocalAuthStore(){
+  const cfg = getSyncConfig();
+  if (!cfg.url) return {ok:false, reason:"not-configured"};
+  try {
+    const resp = await fetch(cfg.url + "?secret=" + encodeURIComponent(cfg.secret) + "&type=users");
+    const data = await resp.json();
+    if (!data.ok) return {ok:false, reason: data.error || "server error"};
+    const byLogin = {};
+    loadProfiles().forEach(p => { byLogin[p.login] = p; });
+    (data.users || []).forEach(raw => {
+      if (!raw || !raw.login) return;
+      const existing = byLogin[raw.login];
+      const rawStamp = new Date(raw.updatedAt || raw.timestamp || 0).getTime();
+      const existingStamp = existing ? new Date(existing.updatedAt || existing.timestamp || 0).getTime() : -1;
+      if (existing && existingStamp >= rawStamp) return;
+      byLogin[raw.login] = {
+        // A fully-numeric password comes back from Google Sheets as a JS number, not a
+        // string (the sheet cell isn't formatted as text) — String() it here, or it'll
+        // never match what the login form reads out of a text input (always a string).
+        login: raw.login, password: raw.password != null ? String(raw.password) : "", fullName: raw.fullName || "",
+        role: raw.role || DEFAULT_ROLE_ID,
+        createdAt: raw.createdAt || "", updatedAt: raw.updatedAt || raw.timestamp || "",
+      };
+    });
+    saveProfiles(Object.values(byLogin));
+    return {ok:true};
+  } catch(e){
+    return {ok:false, reason: String(e && e.message || e)};
+  }
+}
+
+async function pullProfilesFromServer(){
+  const cfg = getSyncConfig();
+  if (!cfg.url) return {ok:false, reason:"not-configured"};
+  try {
+    const resp = await fetch(cfg.url + "?secret=" + encodeURIComponent(cfg.secret) + "&type=users");
+    const data = await resp.json();
+    if (!data.ok) return {ok:false, reason: data.error || "server error"};
+    const byLogin = {};
+    loadSyncedProfiles().forEach(p => { byLogin[p.login] = p; });
+    let imported = 0;
+    (data.users || []).forEach(raw => {
+      if (!raw || !raw.login) return;
+      const existing = byLogin[raw.login];
+      // Keep whichever copy is newer (updatedAt/timestamp), so a stale pull never
+      // clobbers a more recent one already cached locally.
+      const rawStamp = new Date(raw.updatedAt || raw.timestamp || 0).getTime();
+      const existingStamp = existing ? new Date(existing.updatedAt || existing.timestamp || 0).getTime() : -1;
+      if (existing && existingStamp >= rawStamp) return;
+      byLogin[raw.login] = {
+        login: raw.login, password: raw.password != null ? String(raw.password) : "", fullName: raw.fullName || "",
+        role: raw.role || DEFAULT_ROLE_ID,
+        createdAt: raw.createdAt || "", updatedAt: raw.updatedAt || raw.timestamp || "",
+      };
+      imported++;
+    });
+    saveSyncedProfiles(Object.values(byLogin));
+    return {ok:true, imported};
+  } catch(e){
+    return {ok:false, reason: String(e && e.message || e)};
+  }
+}
+
+// ---------- app state ----------
+let route = "login";     // login | dashboard | profile | test | result | admin | qbank
+let dashboardGroup = null; // null = show section buttons (Первичное/Продвинутое/Технологи); else = a group id, show its tests
+let profileMsg = ""; // one-off status line shown at the top of the Профиль page
+let currentTest = null;  // test object with runtime question order
+let currentAttempt = null; // {answers:{}, startedAt}
+let lastResult = null;
+let qbankTestId = null;
+let attemptDetailId = null;
+let attemptDetailBack = "admin"; // route to return to
+
+const appEl = document.getElementById("app");
+const whoBox = document.getElementById("whoBox");
+
+function renderHeader(){
+  const s = getSession();
+  if (!s){ whoBox.innerHTML = ""; return; }
+  whoBox.innerHTML = `
+    <span>${escapeHtml(s.fullName || s.login)}</span>
+    <button id="navDash">Кабинет</button>
+    <button id="navProfile">Профиль</button>
+    <button id="navAdmin">Админ</button>
+    <button id="navLogout">Выйти</button>
+  `;
+  document.getElementById("navDash").onclick = () => { route="dashboard"; dashboardGroup=null; render(); };
+  document.getElementById("navProfile").onclick = () => { route="profile"; profileMsg=""; render(); };
+  document.getElementById("navAdmin").onclick = () => { route="admin"; render(); };
+  document.getElementById("navLogout").onclick = () => { setSession(null); sessionStorage.removeItem(LS_ADMIN); route="login"; loginTab="login"; render(); };
+}
+
+function render(){
+  renderHeader();
+  const s = getSession();
+  if (!s && route !== "login"){ route = "login"; loginTab = "login"; }
+  saveNavState();
+  if (route === "login") return renderLogin();
+  if (route === "dashboard") return renderDashboard();
+  if (route === "profile") return renderProfile();
+  if (route === "test") return renderTest();
+  if (route === "result") return renderResult();
+  if (route === "admin") return renderAdmin();
+  if (route === "qbank") return renderQuestionBank();
+  if (route === "attemptDetail") return renderAttemptDetail();
+}
+
+// ---------- LOGIN ----------
+let loginTab = "login"; // login | register
+
+// After a successful login/registration: go straight to the dashboard, unless ФИО is
+// still blank (fresh registration), in which case nudge the person to fill in their
+// profile first.
+function postAuthRoute(fullName){
+  if (!fullName){ route = "profile"; profileMsg = "Заполните ФИО, чтобы оно отображалось в результатах тестов."; }
+  else { route = "dashboard"; dashboardGroup = null; }
+}
+
+function renderLogin(){
+  appEl.innerHTML = `
+    <div class="card" style="max-width:420px;margin:40px auto;">
+      <h2>Личный кабинет</h2>
+      <div class="tabs">
+        <div class="tab ${loginTab==="login"?"active":""}" id="tabLogin">Войти</div>
+        <div class="tab ${loginTab==="register"?"active":""}" id="tabRegister">Зарегистрироваться</div>
+      </div>
+      <p class="muted small">${loginTab==="login"
+        ? "Введите логин и пароль вашего профиля."
+        : "Придумайте логин и пароль — ФИО можно будет указать сразу после регистрации, в профиле."}</p>
+      <label for="fLogin">Логин</label>
+      <input type="text" id="fLogin" placeholder="">
+      <label for="fPass">Пароль</label>
+      <input type="password" id="fPass" placeholder="">
+      <div class="row">
+        <button class="btn" id="btnAuth">${loginTab==="login" ? "Войти" : "Зарегистрироваться"}</button>
+      </div>
+      <p class="small muted" id="loginMsg" style="margin-top:10px;"></p>
+    </div>
+  `;
+  document.getElementById("tabLogin").onclick = () => { loginTab = "login"; render(); };
+  document.getElementById("tabRegister").onclick = () => { loginTab = "register"; render(); };
+
+  document.getElementById("btnAuth").onclick = async () => {
+    const login = document.getElementById("fLogin").value.trim().toLowerCase();
+    const pass = document.getElementById("fPass").value;
+    const msg = document.getElementById("loginMsg");
+    if (!login || !pass){ msg.textContent = "Заполните логин и пароль."; return; }
+
+    if (loginTab === "login"){
+      let profiles = loadProfiles();
+      let p = profiles.find(x => x.login === login);
+      // Not known on this computer — try the server before giving up, in case this
+      // account was registered elsewhere and just never logged in from here before.
+      if (!p && syncConfigured()){
+        msg.textContent = "На этом компьютере такого логина нет, проверяю на сервере…";
+        const res = await pullProfilesIntoLocalAuthStore();
+        profiles = loadProfiles();
+        p = profiles.find(x => x.login === login);
+        if (!p && !res.ok){
+          msg.textContent = "Такого логина нет на этом компьютере, а проверить на сервере не удалось (" + res.reason + "). Проверьте интернет и повторите.";
+          return;
+        }
+      }
+      if (!p){ msg.textContent = "Такого логина нет. Нажмите «Зарегистрироваться»."; return; }
+      if (String(p.password) !== pass){ msg.textContent = "Неверный пароль для этого логина."; return; }
+      setSession({login: p.login, fullName: p.fullName, role: p.role || DEFAULT_ROLE_ID});
+      pushProfileToServer(p); // keeps the admin's server-side Users list current, incl. accounts created before this synced
+      postAuthRoute(p.fullName);
+      render();
+    } else {
+      const profiles = loadProfiles();
+      if (profiles.some(x => x.login === login)){ msg.textContent = "Такой логин уже занят. Нажмите «Войти» или выберите другой логин."; return; }
+      const p = {login, password: pass, fullName: "", role: DEFAULT_ROLE_ID, createdAt: new Date().toISOString()};
+      profiles.push(p);
+      saveProfiles(profiles);
+      pushProfileToServer(p);
+      setSession({login: p.login, fullName: p.fullName, role: p.role});
+      postAuthRoute(p.fullName);
+      render();
+    }
+  };
+}
+
+// ---------- PROFILE ----------
+function renderProfile(){
+  const s = getSession();
+  const profiles = loadProfiles();
+  const p = profiles.find(x => x.login === s.login) || {login: s.login, fullName: s.fullName, createdAt: null};
+
+  appEl.innerHTML = `
+    <div class="card" style="max-width:480px;">
+      <h2>Мой профиль</h2>
+      ${profileMsg ? `<p class="small" style="color:var(--accent);">${escapeHtml(profileMsg)}</p>` : ""}
+      <label for="pFio">ФИО</label>
+      <input type="text" id="pFio" placeholder="Иванов Иван Иванович" value="${escapeHtml(p.fullName || "")}">
+      <label>Логин</label>
+      <input type="text" value="${escapeHtml(p.login)}" disabled>
+      <label>Дата регистрации</label>
+      <input type="text" value="${p.createdAt ? fmtDate(p.createdAt) : "—"}" disabled>
+      <div class="row">
+        <button class="btn" id="btnSaveProfile">Сохранить</button>
+      </div>
+      <p class="small muted" id="profileSaveMsg" style="margin-top:10px;"></p>
+    </div>
+  `;
+  document.getElementById("btnSaveProfile").onclick = () => {
+    const fullName = document.getElementById("pFio").value.trim();
+    const saveMsg = document.getElementById("profileSaveMsg");
+    if (!fullName){ saveMsg.textContent = "Укажите ФИО."; return; }
+    const idx = profiles.findIndex(x => x.login === s.login);
+    if (idx === -1){
+      profiles.push({login: s.login, password: "", fullName, role: DEFAULT_ROLE_ID, createdAt: new Date().toISOString()});
+    } else {
+      profiles[idx].fullName = fullName;
+    }
+    saveProfiles(profiles);
+    const updatedProfile = profiles.find(x => x.login === s.login);
+    setSession({login: s.login, fullName, role: updatedProfile.role || DEFAULT_ROLE_ID});
+    pushProfileToServer(updatedProfile);
+    profileMsg = "";
+    saveMsg.textContent = "Сохранено.";
+    renderHeader();
+  };
+}
+
+// ---------- DASHBOARD ----------
+const GROUP_BUTTON_META = {
+  kon_v2: { title: "Первичное тестирование", desc: "Базовый уровень для инженеров-конструкторов — начните отсюда." },
+  kon_v1: { title: "Продвинутое тестирование", desc: "Открывается по каждой категории отдельно, после сдачи первичного теста по ней (мин. оценка «удовлетворительно»)." },
+  tech: { title: "Технологи", desc: "Тесты для инженеров-технологов." },
+  sales: { title: "Спецтехника и навесное оборудование", desc: "Тесты для менеджеров по продажам спецтехники и навесного оборудования." },
+};
+const GROUP_ORDER = ["kon_v2", "kon_v1", "tech", "sales"];
+
+function renderDashboard(){
+  const s = getSession();
+  const results = loadResults().filter(r => r.login === s.login).sort((a,b)=>b.dateISO.localeCompare(a.dateISO));
+  const visibleTests = hasFullAccess(s) ? getAllTests() : getVisibleTestsForRole(s.role || DEFAULT_ROLE_ID);
+  const groups = {};
+  visibleTests.forEach(t => { (groups[t.group] = groups[t.group] || []).push(t); });
+
+  // Stable group order: known groups first (Первичное/Продвинутое/Технологи), then any
+  // custom admin-uploaded groups in the order they were encountered.
+  const groupIds = Object.keys(groups).sort((a, b) => {
+    const ia = GROUP_ORDER.indexOf(a), ib = GROUP_ORDER.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return 0;
+  });
+
+  let groupsHtml;
+  if (!dashboardGroup || !groups[dashboardGroup]){
+    // Top level: one button per section.
+    groupsHtml = `<div class="group-grid">` + groupIds.map(g => {
+      const meta = GROUP_BUTTON_META[g] || { title: groups[g][0].groupLabel, desc: "" };
+      return `
+        <div class="group-tile" data-group="${escapeHtml(g)}">
+          <div class="g-title">${escapeHtml(meta.title)}</div>
+          <div class="g-desc">${escapeHtml(meta.desc)}</div>
+        </div>`;
+    }).join("") + `</div>`;
+  } else {
+    // Group level: tiles for each test in the selected group, with advanced-testing lock.
+    const g = dashboardGroup;
+    const meta = GROUP_BUTTON_META[g] || { title: groups[g][0].groupLabel };
+    groupsHtml = `<button class="back-link" id="btnBackToGroups">← Назад к разделам</button>` +
+      `<div class="section-title">${escapeHtml(meta.title)}</div><div class="grid">` +
+      groups[g].map(t => {
+        const eff = t;
+        const inProg = getInProgress(s.login, t.id);
+        const progNote = inProg ? `<div class="meta" style="color:var(--accent);font-weight:600;">Есть незавершённая попытка — вопрос ${inProg.idx+1} из ${inProg.flat.length}</div>` : "";
+        const locked = isTestLocked(t, s, results);
+        const lockNote = locked ? `<div class="lock-note">🔒 Сначала пройдите первичное тестирование по этой категории (мин. оценка «удовлетворительно»)</div>` : "";
+        return `
+          <div class="test-tile${locked ? " locked" : ""}" ${locked ? `data-locked="${t.id}"` : `data-test="${t.id}"`}>
+            <div class="grp">${escapeHtml(t.positionTitle)}</div>
+            <div class="lbl">${escapeHtml(t.label)}</div>
+            <div class="meta">${eff.totalQuestions} вопросов · ~${t.timeMinutes} мин</div>
+            ${progNote}
+            ${lockNote}
+          </div>`;
+      }).join("") + `</div>`;
+  }
+
+  let resultsHtml = `<p class="muted small">Вы ещё не проходили тестов.</p>`;
+  if (results.length){
+    resultsHtml = `<table><thead><tr><th>Тест</th><th>Дата</th><th>Результат</th><th>Оценка</th><th></th></tr></thead><tbody>` +
+      results.map(r => {
+        const b = bandFor(r.percent);
+        return `<tr>
+          <td>${escapeHtml(r.testLabel)} — ${escapeHtml(r.label)}</td>
+          <td>${fmtDate(r.dateISO)}</td>
+          <td>${r.correctCount}/${r.totalQuestions} (${r.percent.toFixed(1)}%)</td>
+          <td><span class="pill ${b.cls}">${b.label}</span></td>
+          <td>
+            <button class="btn ghost" data-export="${r.id}">Экспорт</button>
+            ${syncConfigured() ? `<button class="btn ghost" data-resend="${r.id}">Отправить на сервер</button>` : ""}
+            <span class="small muted" data-resend-status="${r.id}"></span>
+          </td>
+        </tr>`;
+      }).join("") + `</tbody></table>`;
+  }
+
+  appEl.innerHTML = `
+    <div class="card">
+      <h2>${dashboardGroup && groups[dashboardGroup] ? "Выберите тест" : "Выберите раздел тестирования"}</h2>
+      ${groupsHtml}
+    </div>
+    <div class="card">
+      <h2>Мои результаты</h2>
+      ${resultsHtml}
+      ${results.length ? `<div class="row" style="margin-top:12px;"><button class="btn secondary" id="exportAll">Экспортировать все мои результаты (для админа)</button></div>` : ""}
+      <p class="footer-note">${syncConfigured()
+        ? "Результаты тестов отправляются администратору автоматически при наличии интернета. Кнопка «Экспорт» — на случай, если автоотправка не сработала."
+        : "Автоматическая отправка результатов пока не настроена. Экспортируйте результат (кнопка «Экспорт») и передайте файл администратору."}</p>
+    </div>
+  `;
+  appEl.querySelectorAll(".group-tile").forEach(el => {
+    el.onclick = () => { dashboardGroup = el.dataset.group; render(); };
+  });
+  const backBtn = document.getElementById("btnBackToGroups");
+  if (backBtn) backBtn.onclick = () => { dashboardGroup = null; render(); };
+  appEl.querySelectorAll(".test-tile[data-test]").forEach(el => {
+    el.onclick = () => startTest(el.dataset.test);
+  });
+  appEl.querySelectorAll(".test-tile[data-locked]").forEach(el => {
+    el.onclick = () => alert("Продвинутое тестирование по этой категории пока недоступно: сначала нужно пройти первичное тестирование по той же категории с оценкой не ниже «удовлетворительно».");
+  });
+  appEl.querySelectorAll("[data-export]").forEach(el => {
+    el.onclick = () => {
+      const r = results.find(x => x.id === el.dataset.export);
+      downloadJSON([r], `attestation_result_${r.login}_${r.testId}_${r.id}.json`);
+    };
+  });
+  appEl.querySelectorAll("[data-resend]").forEach(el => {
+    el.onclick = () => {
+      const r = results.find(x => x.id === el.dataset.resend);
+      const statusEl = appEl.querySelector(`[data-resend-status="${r.id}"]`);
+      el.disabled = true;
+      if (statusEl) statusEl.textContent = "Отправляю…";
+      pushResultToServer(r).then(res => {
+        el.disabled = false;
+        if (statusEl) statusEl.textContent = res.ok ? "Отправлено ✓" : `Не удалось: ${res.reason}`;
+      });
+    };
+  });
+  const exportAllBtn = document.getElementById("exportAll");
+  if (exportAllBtn) exportAllBtn.onclick = () => downloadJSON(results, `attestation_results_${s.login}_all.json`);
+}
+
+// ---------- TEST TAKING ----------
+function startTest(testId, forceRestart){
+  const s = getSession();
+  const rawMeta = getAllTests().find(t => t.id === testId);
+  if (!rawMeta){ alert("Этот тест больше недоступен (удалён администратором)."); route = "dashboard"; render(); return; }
+  if (s){
+    const loginResults = loadResults().filter(r => r.login === s.login);
+    if (isTestLocked(rawMeta, s, loginResults)){
+      alert("Продвинутое тестирование по этой категории пока недоступно: сначала нужно пройти первичное тестирование по той же категории с оценкой не ниже «удовлетворительно».");
+      route = "dashboard"; render(); return;
+    }
+  }
+  const meta = getEffectiveTest(rawMeta);
+  const saved = (!forceRestart && s) ? getInProgress(s.login, testId) : null;
+
+  if (saved){
+    const answeredCount = saved.answers.filter(a => a.length > 0).length;
+    const resume = confirm(
+      `У вас есть незавершённая попытка этого теста (отвечено ${answeredCount} из ${saved.flat.length}, вы остановились на вопросе ${saved.idx+1}).\n\n` +
+      `ОК — продолжить с этого места.\nОтмена — начать заново (сохранённый прогресс будет потерян).`
+    );
+    if (resume){
+      const flat = saved.flat.map(q => ({
+        sectionTitle: q.sectionTitle, q: q.q, displayOptions: q.displayOptions,
+        correctSet: new Set(q.correctIdx), isMulti: q.isMulti,
+      }));
+      currentTest = {...meta, id: testId, flat};
+      currentAttempt = { answers: saved.answers.map(a => new Set(a)), startedAt: saved.startedAt, idx: Math.min(saved.idx, flat.length-1) };
+      route = "test";
+      render();
+      return;
+    }
+    clearInProgress(s.login, testId);
+  }
+
+  // Build a flat runtime question list with shuffled option order, tagged with section title.
+  // The question bank itself (admin view) keeps the fixed section order; only this
+  // per-attempt runtime copy gets its question order shuffled, freshly on every start.
+  let flat = [];
+  meta.sections.forEach(sec => {
+    sec.questions.forEach(q => {
+      const order = shuffle(q.options.map((_, i) => i));
+      flat.push({
+        sectionTitle: sec.title,
+        q: q.q,
+        displayOptions: order.map(i => q.options[i]),
+        correctSet: new Set(q.correct.map(origIdx => order.indexOf(origIdx))),
+        isMulti: q.correct.length > 1,
+      });
+    });
+  });
+  flat = shuffle(flat);
+  currentTest = {...meta, flat};
+  currentAttempt = { answers: flat.map(()=>new Set()), startedAt: Date.now(), idx: 0 };
+  route = "test";
+  render();
+  saveCurrentProgress();
+}
+
+function renderTest(){
+  const t = currentTest;
+  const i = currentAttempt.idx;
+  const total = t.flat.length;
+  const q = t.flat[i];
+  const answered = t.flat.filter((_,k)=>currentAttempt.answers[k].size>0).length;
+
+  const optsHtml = q.displayOptions.map((opt, oi) => {
+    const checked = currentAttempt.answers[i].has(oi) ? "checked" : "";
+    const type = q.isMulti ? "checkbox" : "radio";
+    return `<label class="opt"><input type="${type}" name="opt" data-oi="${oi}" ${checked}> <span>${escapeHtml(opt)}</span></label>`;
+  }).join("");
+
+  const isLast = i === total - 1;
+  appEl.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <div><strong>${escapeHtml(t.positionTitle)}</strong> — ${escapeHtml(t.label)}</div>
+        <div class="small muted">Отвечено: ${answered}/${total}</div>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <button class="btn ghost" id="btnPrev" ${i===0?"disabled":""}>Назад</button>
+        <button class="btn secondary" id="btnNext" ${isLast?"disabled":""}>Далее</button>
+      </div>
+      <div class="progress-bar"><div style="width:${(answered/total*100).toFixed(0)}%"></div></div>
+      <div class="q-block">
+        <div class="q-num">Вопрос ${i+1} из ${total}</div>
+        <div class="q-text">${escapeHtml(q.q)}</div>
+        ${q.isMulti ? `<div class="q-hint">(возможно более одного правильного варианта)</div>` : ""}
+        ${optsHtml}
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:14px;">
+        <button class="btn ghost" id="btnQuit" style="font-size:12px;padding:2px 10px;opacity:0.65;">Прервать тест</button>
+      </div>
+    </div>
+    ${isLast ? `
+    <div class="card" style="border-color:var(--accent);">
+      <h2>Завершение теста</h2>
+      <p class="small muted">Это последний вопрос. Отвечено: ${answered} из ${total}. Кнопкой «Назад» можно ещё раз просмотреть и изменить любой ответ перед отправкой.</p>
+      <button class="btn" id="btnFinish">Завершить и получить результат</button>
+    </div>` : ""}
+  `;
+  appEl.querySelectorAll('input[name="opt"]').forEach(inp => {
+    inp.onchange = () => {
+      const oi = Number(inp.dataset.oi);
+      if (q.isMulti){
+        if (inp.checked) currentAttempt.answers[i].add(oi); else currentAttempt.answers[i].delete(oi);
+      } else {
+        currentAttempt.answers[i] = new Set([oi]);
+      }
+      saveCurrentProgress();
+    };
+  });
+  const confirmUnanswered = () => currentAttempt.answers[i].size > 0
+    || confirm("Вы не выбрали ответ на этот вопрос. Всё равно перейти к другому вопросу?");
+  document.getElementById("btnPrev").onclick = () => { if (!confirmUnanswered()) return; currentAttempt.idx--; saveCurrentProgress(); renderTest(); };
+  document.getElementById("btnNext").onclick = () => { if (!confirmUnanswered()) return; currentAttempt.idx++; saveCurrentProgress(); renderTest(); };
+  document.getElementById("btnQuit").onclick = () => {
+    if (confirm("Прервать тест сейчас? Ваши ответы сохранятся — вы сможете продолжить с этого места позже. Итоговый результат отправлен не будет, пока вы не завершите тест.")){
+      currentTest=null; currentAttempt=null; route="dashboard"; render();
+    }
+  };
+  const finishBtn = document.getElementById("btnFinish");
+  if (finishBtn) finishBtn.onclick = () => {
+    const unanswered = total - answered;
+    const warn = unanswered > 0 ? `\n\nВнимание: не отвечено на ${unanswered} вопрос(ов) — они будут засчитаны как неверные.` : "";
+    if (confirm(`Завершить тест и отправить результат? Ответы после этого изменить будет нельзя.${warn}`)){
+      finishTest();
+    }
+  };
+}
+
+function finishTest(){
+  const t = currentTest;
+  const s = getSession();
+  const sectionStats = {};
+  let correctCount = 0;
+  const details = [];
+  t.flat.forEach((q, i) => {
+    const given = currentAttempt.answers[i];
+    const isCorrect = given.size === q.correctSet.size && [...given].every(x => q.correctSet.has(x));
+    if (isCorrect) correctCount++;
+    const st = sectionStats[q.sectionTitle] = sectionStats[q.sectionTitle] || {total:0, correct:0};
+    st.total++;
+    if (isCorrect) st.correct++;
+    // Self-contained snapshot of this question as shown (shuffled options + which were
+    // correct/given), so the attempt can be reviewed or printed later even if the
+    // question bank changes afterward.
+    details.push({
+      sectionTitle: q.sectionTitle,
+      q: q.q,
+      options: q.displayOptions,
+      correctIdx: [...q.correctSet].sort((a,b)=>a-b),
+      givenIdx: [...given].sort((a,b)=>a-b),
+      isCorrect,
+    });
+  });
+  const total = t.flat.length;
+  const percent = total ? (correctCount/total*100) : 0;
+  const band = bandFor(percent);
+  const durationSec = Math.round((Date.now() - currentAttempt.startedAt)/1000);
+  const sections = Object.keys(sectionStats).map(title => {
+    const st = sectionStats[title];
+    return {title, total: st.total, correct: st.correct, percent: st.total ? st.correct/st.total*100 : 0};
+  });
+
+  const result = {
+    id: uid(),
+    login: s.login,
+    fullName: s.fullName,
+    testId: t.id,
+    testLabel: t.positionTitle,
+    label: t.label,
+    group: t.group,
+    groupLabel: t.groupLabel,
+    dateISO: new Date().toISOString(),
+    totalQuestions: total,
+    correctCount,
+    percent,
+    bandLabel: band.label,
+    durationSec,
+    sections,
+    details,
+  };
+  const results = loadResults();
+  results.push(result);
+  saveResults(results);
+  if (s) clearInProgress(s.login, t.id);
+  lastResult = result;
+  lastSyncStatus = syncConfigured() ? "sending" : "not-configured";
+  currentTest = null; currentAttempt = null;
+  route = "result";
+  render();
+  if (syncConfigured()){
+    pushResultToServer(result).then(res => {
+      lastSyncStatus = res.ok ? "sent" : "failed";
+      if (route === "result" && lastResult && lastResult.id === result.id) renderResult();
+    });
+  }
+}
+
+// ---------- RESULT ----------
+let lastSyncStatus = "not-configured"; // not-configured | sending | sent | failed
+function renderResult(){
+  const r = lastResult;
+  const b = bandFor(r.percent);
+  const sectionRows = r.sections.map(sec => {
+    const sb = bandFor(sec.percent);
+    return `<tr><td>${escapeHtml(sec.title)}</td><td>${sec.correct}/${sec.total}</td><td><span class="pill ${sb.cls}">${sec.percent.toFixed(0)}%</span></td></tr>`;
+  }).join("");
+  const syncLine = {
+    "not-configured": `<p class="small muted">Автоотправка результата не настроена — передайте файл администратору вручную.</p>`,
+    "sending": `<p class="small muted">Отправляю результат администратору…</p>`,
+    "sent": `<p class="small" style="color:var(--good);">✓ Результат отправлен администратору автоматически.</p>`,
+    "failed": `<p class="small" style="color:var(--bad);">Не удалось отправить автоматически (нет интернета?). Экспортируйте результат и передайте администратору вручную.</p>`,
+  }[lastSyncStatus];
+  appEl.innerHTML = `
+    <div class="card" style="text-align:center;">
+      <div class="muted">${escapeHtml(r.testLabel)} — ${escapeHtml(r.label)}</div>
+      <div class="score-big band-${b.cls}">${r.percent.toFixed(1)}%</div>
+      <div class="muted">${r.correctCount} из ${r.totalQuestions} правильных ответов</div>
+      <div style="margin-top:10px;"><span class="pill ${b.cls}" style="font-size:14px;padding:6px 16px;">${b.label}</span></div>
+      ${syncLine}
+    </div>
+    <div class="card">
+      <h2>Результаты по разделам</h2>
+      <table><thead><tr><th>Раздел</th><th>Верно</th><th>%</th></tr></thead><tbody>${sectionRows}</tbody></table>
+    </div>
+    <div class="row">
+      <button class="btn" id="btnToDash">В кабинет</button>
+      <button class="btn secondary" id="btnExportOne">Экспортировать результат (для админа)</button>
+    </div>
+  `;
+  document.getElementById("btnToDash").onclick = () => { route="dashboard"; render(); };
+  document.getElementById("btnExportOne").onclick = () => downloadJSON([r], `attestation_result_${r.login}_${r.testId}_${r.id}.json`);
+}
+
+// ---------- ADMIN ----------
+let lastImportMsg = "";
+let lastSyncPullMsg = "";
+let autoSyncDone = false;
+let lastCustomTestMsg = "";
+let lastCustomTestMsgColor = "";
+function renderAdmin(){
+  if (!isAdmin()){
+    appEl.innerHTML = `
+      <div class="card" style="max-width:400px;margin:40px auto;">
+        <h2>Вход для администратора</h2>
+        <label for="aPass">Пароль администратора</label>
+        <input type="password" id="aPass">
+        <button class="btn" id="aBtn">Войти</button>
+        <p class="small muted" id="aMsg" style="margin-top:10px;"></p>
+      </div>`;
+    document.getElementById("aBtn").onclick = () => {
+      if (document.getElementById("aPass").value === ADMIN_PASSWORD){
+        sessionStorage.setItem(LS_ADMIN, "1");
+        renderAdmin();
+      } else {
+        document.getElementById("aMsg").textContent = "Неверный пароль.";
+      }
+    };
+    return;
+  }
+
+  if (syncConfigured() && !autoSyncDone){
+    autoSyncDone = true;
+    lastSyncPullMsg = "Загружаю результаты и пользователей с сервера…";
+    Promise.all([pullResultsFromServer(), pullProfilesFromServer()]).then(([resResults, resUsers]) => {
+      lastSyncPullMsg = (resResults.ok && resUsers.ok)
+        ? `Синхронизировано ${fmtDate(new Date().toISOString())}: новых результатов — ${resResults.imported}, новых/обновлённых пользователей — ${resUsers.imported}.`
+        : `Не удалось синхронизироваться: ${resResults.reason || resUsers.reason}`;
+      if (route === "admin") renderAdmin();
+    });
+  }
+
+  const results = loadResults();
+  // Merge every known source of accounts: profiles synced from the server (other
+  // browsers/employees), this browser's own local profiles (e.g. the admin's own
+  // account), and — as a last-resort fallback for accounts registered before this
+  // feature existed — logins that only show up on a result record (no password known).
+  const users = {};
+  loadSyncedProfiles().forEach(p => {
+    users[p.login] = {login: p.login, fullName: p.fullName, password: p.password, role: p.role || DEFAULT_ROLE_ID, createdAt: p.createdAt, attempts: []};
+  });
+  loadProfiles().forEach(p => {
+    users[p.login] = {...(users[p.login]||{attempts:[]}), login: p.login, fullName: p.fullName, password: p.password, role: p.role || DEFAULT_ROLE_ID, createdAt: p.createdAt};
+  });
+  results.forEach(r => {
+    if (!users[r.login]) users[r.login] = {login: r.login, fullName: r.fullName, password: null, role: DEFAULT_ROLE_ID, createdAt: null, attempts: []};
+    users[r.login].attempts.push(r);
+  });
+  const userLogins = Object.keys(users).sort();
+
+  let overviewRows = "";
+  userLogins.forEach(login => {
+    const u = users[login];
+    const best = {};
+    u.attempts.forEach(a => {
+      if (!best[a.testId] || a.percent > best[a.testId].percent) best[a.testId] = a;
+    });
+    const cells = Object.values(best).map(a => {
+      const b = bandFor(a.percent);
+      return `<span class="pill ${b.cls}" title="${escapeHtml(a.testLabel)} — ${escapeHtml(a.label)}">${escapeHtml(a.label)} ${a.percent.toFixed(0)}%</span>`;
+    }).join(" ");
+    const roleOptionsHtml = getEffectiveRoles().map(r =>
+      `<option value="${escapeHtml(r.id)}" ${r.id === (u.role || DEFAULT_ROLE_ID) ? "selected" : ""}>${escapeHtml(r.name)}</option>`
+    ).join("");
+    overviewRows += `<tr>
+      <td>${escapeHtml(u.fullName || "(ФИО не заполнено)")}</td>
+      <td class="small muted">${escapeHtml(login)}</td>
+      <td class="small">${u.password ? escapeHtml(u.password) : `<span class="muted">неизвестен</span>`}</td>
+      <td><select class="user-role-select" data-login="${escapeHtml(login)}" style="font-size:12px;padding:2px 4px;">${roleOptionsHtml}</select></td>
+      <td class="small muted">${u.createdAt ? fmtDate(u.createdAt) : "—"}</td>
+      <td>${u.attempts.length}</td>
+      <td>${cells}</td>
+      <td><button class="btn ghost" data-user="${escapeHtml(login)}">Подробнее</button></td>
+    </tr>`;
+  });
+
+  const cfg = getSyncConfig();
+  const allTestsList = getAllTests();
+
+  const rolesList = getEffectiveRoles();
+  const rolesHtml = rolesList.map(role => {
+    const testIds = new Set(role.testIds || []);
+    const checkboxesHtml = allTestsList.map(t => `
+      <label class="small" style="display:flex;align-items:center;gap:5px;">
+        <input type="checkbox" class="role-test-cb" data-role="${escapeHtml(role.id)}" data-test="${escapeHtml(t.id)}" ${testIds.has(t.id) ? "checked" : ""}>
+        ${escapeHtml(t.positionTitle)} — ${escapeHtml(t.label)}
+      </label>`).join("");
+    return `
+      <div class="q-block" style="margin-bottom:16px;">
+        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <input type="text" class="role-name-input" data-role="${escapeHtml(role.id)}" value="${escapeHtml(role.name)}" style="max-width:280px;">
+          ${role.id === DEFAULT_ROLE_ID
+            ? `<span class="small muted">роль по умолчанию для новых пользователей</span>`
+            : `<button class="btn ghost" data-del-role="${escapeHtml(role.id)}" style="color:var(--bad);border-color:var(--bad);">Удалить роль</button>`}
+        </div>
+        <div class="small muted" style="margin:8px 0 4px;">Видимые тесты:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px 20px;">${checkboxesHtml}</div>
+      </div>`;
+  }).join("");
+
+  appEl.innerHTML = `
+    <div class="card">
+      <h2>Роли пользователей</h2>
+      <p class="small muted">Роль определяет, какие тесты сотрудник видит в своём кабинете. Новый пользователь получает роль «Пользователь» автоматически — присвоить другую роль можно ниже, в таблице «Все пользователи». Изменения сохраняются в Google Таблицу сразу и видны всем.</p>
+      ${rolesHtml}
+      <button class="btn secondary" id="btnAddRole">+ Добавить роль</button>
+    </div>
+    <div class="card">
+      <h2>Синхронизация с сервером (Google-таблица)</h2>
+      ${syncConfigured()
+        ? `<p class="small">Статус: <strong style="color:var(--good);">настроено</strong>. Результаты сотрудников прилетают сюда автоматически.</p>
+           <p class="small muted">${escapeHtml(lastSyncPullMsg)}</p>
+           <div class="row"><button class="btn secondary" id="btnSyncNow">Синхронизировать сейчас</button></div>`
+        : `<p class="small muted">Автосбор результатов пока не настроен — используется ручной импорт файлов ниже. Чтобы включить автоматику, разверните Google Apps Script по инструкции и укажите ссылку здесь (сохранится только в этом браузере) или попросите зашить её в сам файл для всех сотрудников.</p>
+           <div class="row" style="align-items:flex-end;">
+             <div style="flex:1;"><label for="syncUrl">Web App URL</label><input type="text" id="syncUrl" placeholder="https://script.google.com/macros/s/.../exec" value="${escapeHtml(cfg.url||"")}"></div>
+             <div style="width:220px;"><label for="syncSecret">Секретный ключ</label><input type="text" id="syncSecret" value="${escapeHtml(cfg.secret||"")}"></div>
+           </div>
+           <button class="btn secondary" id="btnSaveSync">Сохранить (только в этом браузере)</button>`}
+    </div>
+    <div class="card">
+      <h2>База вопросов</h2>
+      <p class="small muted">Полный список вопросов по каждому тесту с отмеченными правильными ответами — для проверки содержания и подготовки материалов.</p>
+      <button class="btn secondary" id="btnOpenQbank">Открыть базу вопросов</button>
+    </div>
+    <div class="card">
+      <h2>Тесты</h2>
+      <p class="small muted">Список всех тестов, доступных сотрудникам. Удаление и загрузка нового теста сохраняются в Google Таблицу сразу и видны всем, кто откроет приложение.</p>
+      <table style="margin-bottom:12px;"><thead><tr><th>Должность</th><th>Категория</th><th>Вопросов</th><th></th></tr></thead><tbody>
+        ${allTestsList.map(t => `<tr>
+          <td>${escapeHtml(t.positionTitle)}</td>
+          <td>${escapeHtml(t.label)}</td>
+          <td>${t.sections.reduce((a,s)=>a+s.questions.length,0)}</td>
+          <td><button class="btn ghost" data-del-test="${escapeHtml(t.id)}" style="color:var(--bad);border-color:var(--bad);">Удалить</button></td>
+        </tr>`).join("")}
+      </tbody></table>
+      <h3>Загрузить новый тест</h3>
+      <p class="small muted">Формат: скачайте шаблон, заполните вопросами (у каждого вопроса ровно 8 вариантов ответа) и загрузите файл обратно. Можно загрузить как один тест, так и массив из нескольких тестов в одном файле.</p>
+      <div class="row" style="align-items:flex-end;gap:12px;">
+        <button class="btn ghost" id="btnDownloadTemplate">Скачать шаблон JSON</button>
+      </div>
+      <div class="filebox" id="customTestDropZone" style="margin-top:10px;">
+        <input type="file" id="customTestFileInput" accept=".json" style="margin-bottom:8px;">
+        <div>Выберите файл *.json со своим тестом</div>
+      </div>
+      <p class="small" id="customTestMsg" style="margin-top:8px;white-space:pre-line;color:${lastCustomTestMsgColor};">${lastCustomTestMsg}</p>
+    </div>
+    <div class="card">
+      <h2>Импорт результатов вручную</h2>
+      <p class="small muted">Резервный способ: загрузите файлы результатов (.json), экспортированные сотрудниками из личного кабинета.</p>
+      <div class="filebox" id="dropZone">
+        <input type="file" id="fileInput" multiple accept=".json" style="margin-bottom:8px;">
+        <div>Выберите один или несколько файлов *.json</div>
+      </div>
+      <p class="small" id="importMsg" style="margin-top:8px;">${lastImportMsg}</p>
+    </div>
+    <div class="card">
+      <h2>Все пользователи</h2>
+      <p class="small muted">Логины и пароли доступны здесь, только если синхронизация с сервером настроена (ниже) — без неё видны лишь аккаунты, зарегистрированные в этом браузере, и логины, известные по присланным результатам (без пароля).</p>
+      ${userLogins.length === 0 ? `<p class="muted small">Пока нет ни одного пользователя — зарегистрируйтесь сами или дождитесь сотрудников.</p>` : `
+      <div style="overflow-x:auto;"><table><thead><tr><th>ФИО</th><th>Логин</th><th>Пароль</th><th>Роль</th><th>Дата регистрации</th><th>Попыток</th><th>Лучшие результаты по тестам</th><th></th></tr></thead><tbody>${overviewRows}</tbody></table></div>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn secondary" id="btnExportCsv">Скачать сводную таблицу (CSV)</button>
+        <button class="btn secondary" id="btnExportAllJson">Скачать все результаты (JSON)</button>
+      </div>`}
+    </div>
+    <div id="userDetail"></div>
+  `;
+
+  document.getElementById("fileInput").onchange = (ev) => {
+    const files = Array.from(ev.target.files || []);
+    let imported = 0, alreadyHad = 0, badFiles = 0;
+    const newlyImported = [];
+    let pending = files.length;
+    if (!pending) return;
+    files.forEach(f => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          const arr = Array.isArray(data) ? data : [data];
+          const store = loadResults();
+          const ids = new Set(store.map(x=>x.id));
+          arr.forEach(rec => {
+            if (!rec || !rec.id) { badFiles++; return; }
+            if (ids.has(rec.id)) { alreadyHad++; return; }
+            store.push(rec); ids.add(rec.id); imported++; newlyImported.push(rec);
+          });
+          saveResults(store);
+        } catch(e){ badFiles++; }
+        pending--;
+        if (pending === 0){
+          lastImportMsg = `Импортировано новых записей: ${imported}. Уже были в системе: ${alreadyHad}. Не удалось прочитать: ${badFiles}.`;
+          if (newlyImported.length && syncConfigured()){
+            lastImportMsg += ` Отправляю на сервер…`;
+            renderAdmin();
+            Promise.all(newlyImported.map(rec => pushResultToServer(rec))).then(results => {
+              const sent = results.filter(r => r.ok).length;
+              lastImportMsg = `Импортировано новых записей: ${imported}. Уже были в системе: ${alreadyHad}. Не удалось прочитать: ${badFiles}. Отправлено на сервер: ${sent} из ${newlyImported.length}.`;
+              renderAdmin();
+            });
+          } else {
+            renderAdmin();
+          }
+        }
+      };
+      reader.readAsText(f, "utf-8");
+    });
+  };
+
+  appEl.querySelectorAll("[data-user]").forEach(btn => {
+    btn.onclick = () => renderUserDetail(btn.dataset.user, users[btn.dataset.user]);
+  });
+
+  const csvBtn = document.getElementById("btnExportCsv");
+  if (csvBtn) csvBtn.onclick = () => {
+    const rows = [["ФИО","Логин","Тест","Категория","Дата","Верно","Всего","Процент","Оценка"]];
+    results.forEach(r => rows.push([r.fullName, r.login, r.testLabel, r.label, fmtDate(r.dateISO), r.correctCount, r.totalQuestions, r.percent.toFixed(1), r.bandLabel]));
+    downloadCSV(rows, "attestation_summary.csv");
+  };
+  const jsonBtn = document.getElementById("btnExportAllJson");
+  if (jsonBtn) jsonBtn.onclick = () => downloadJSON(results, "attestation_all_results.json");
+
+  const syncNowBtn = document.getElementById("btnSyncNow");
+  if (syncNowBtn) syncNowBtn.onclick = () => {
+    lastSyncPullMsg = "Синхронизирую…";
+    renderAdmin();
+    Promise.all([pullResultsFromServer(), pullProfilesFromServer()]).then(([resResults, resUsers]) => {
+      lastSyncPullMsg = (resResults.ok && resUsers.ok)
+        ? `Синхронизировано ${fmtDate(new Date().toISOString())}: новых результатов — ${resResults.imported}, новых/обновлённых пользователей — ${resUsers.imported}.`
+        : `Не удалось синхронизироваться: ${resResults.reason || resUsers.reason}`;
+      renderAdmin();
+    });
+  };
+  const saveSyncBtn = document.getElementById("btnSaveSync");
+  if (saveSyncBtn) saveSyncBtn.onclick = () => {
+    const url = document.getElementById("syncUrl").value.trim();
+    const secret = document.getElementById("syncSecret").value.trim();
+    if (!url){ alert("Укажите ссылку Web App."); return; }
+    setSyncOverride({url, secret});
+    autoSyncDone = false;
+    renderAdmin();
+  };
+  const openQbankBtn = document.getElementById("btnOpenQbank");
+  if (openQbankBtn) openQbankBtn.onclick = () => { route = "qbank"; render(); };
+
+  document.getElementById("btnDownloadTemplate").onclick = () => {
+    downloadJSON(customTestTemplate(), "shablon_svoego_testa.json");
+  };
+  appEl.querySelectorAll("[data-del-test]").forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.delTest;
+      const t = getAllTests().find(x => x.id === id);
+      if (!confirm("Удалить тест «" + (t ? t.positionTitle + " — " + t.label : id) + "» на сервере? Он пропадёт у всех сотрудников. Уже сданные попытки в статистике останутся.")) return;
+      btn.disabled = true;
+      const res = await deleteTest(id);
+      if (!res.ok){ alert("Не удалось удалить тест: " + res.reason); btn.disabled = false; return; }
+      renderAdmin();
+    };
+  });
+  document.getElementById("customTestFileInput").onchange = (ev) => {
+    const file = (ev.target.files || [])[0];
+    const msgEl = document.getElementById("customTestMsg");
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let parsed;
+      try { parsed = JSON.parse(reader.result); }
+      catch(e){
+        lastCustomTestMsgColor = "var(--bad)";
+        lastCustomTestMsg = "Не удалось прочитать файл: это не корректный JSON.";
+        msgEl.style.color = lastCustomTestMsgColor; msgEl.textContent = lastCustomTestMsg;
+        return;
+      }
+      const items = Array.isArray(parsed) ? parsed : [parsed];
+      const errors = [];
+      const validTests = [];
+      items.forEach((raw, i) => {
+        const res = validateCustomTestObj(raw, items.length > 1 ? "тест " + (i+1) : null);
+        if (res.ok) validTests.push(res.test); else errors.push(...res.errors);
+      });
+      if (errors.length){
+        lastCustomTestMsgColor = "var(--bad)";
+        lastCustomTestMsg = "Файл не загружен, найдены ошибки:\n— " + errors.slice(0, 20).join("\n— ") + (errors.length > 20 ? `\n…и ещё ${errors.length - 20}.` : "");
+        msgEl.style.color = lastCustomTestMsgColor; msgEl.textContent = lastCustomTestMsg;
+        return;
+      }
+      lastCustomTestMsgColor = "var(--muted)";
+      lastCustomTestMsg = "Загружаю на сервер…";
+      msgEl.style.color = lastCustomTestMsgColor; msgEl.textContent = lastCustomTestMsg;
+      const results = await Promise.all(validTests.map(t => saveTestToServer({...t, order: TESTS.length})));
+      const failed = results.filter(r => !r.ok);
+      if (failed.length){
+        lastCustomTestMsgColor = "var(--bad)";
+        lastCustomTestMsg = "Не удалось сохранить на сервере: " + failed.map(r=>r.reason).join("; ");
+        msgEl.style.color = lastCustomTestMsgColor; msgEl.textContent = lastCustomTestMsg;
+        return;
+      }
+      validTests.forEach(t => TESTS.push({...t, totalQuestions: t.sections.reduce((a,s)=>a+s.questions.length,0)}));
+      const qCount = validTests.reduce((a,t)=>a+t.sections.reduce((b,s)=>b+s.questions.length,0), 0);
+      lastCustomTestMsgColor = "var(--good)";
+      lastCustomTestMsg = `Загружено тестов: ${validTests.length} (вопросов: ${qCount}). Сохранено на сервере — теперь видны всем сотрудникам.`;
+      renderAdmin();
+    };
+    reader.readAsText(file, "utf-8");
+  };
+
+  // ---------- roles: which tests each role sees (saved to the server on every change) ----------
+  appEl.querySelectorAll(".role-test-cb").forEach(cb => {
+    cb.onchange = async () => {
+      const roles = getEffectiveRoles().map(r => ({...r, testIds: [...(r.testIds || [])]}));
+      const role = roles.find(r => r.id === cb.dataset.role);
+      if (!role) return;
+      const testId = cb.dataset.test;
+      if (cb.checked){ if (!role.testIds.includes(testId)) role.testIds.push(testId); }
+      else { role.testIds = role.testIds.filter(id => id !== testId); }
+      cb.disabled = true;
+      const res = await saveRolesToServer(roles);
+      if (!res.ok){ alert("Не удалось сохранить роль: " + res.reason); cb.disabled = false; return; }
+      ROLES = roles;
+      renderAdmin();
+    };
+  });
+  appEl.querySelectorAll(".role-name-input").forEach(inp => {
+    inp.onchange = async () => {
+      const roles = getEffectiveRoles().map(r => ({...r}));
+      const role = roles.find(r => r.id === inp.dataset.role);
+      if (!role) return;
+      role.name = inp.value.trim() || role.name;
+      const res = await saveRolesToServer(roles);
+      if (!res.ok){ alert("Не удалось сохранить роль: " + res.reason); return; }
+      ROLES = roles;
+      renderAdmin();
+    };
+  });
+  const addRoleBtn = document.getElementById("btnAddRole");
+  if (addRoleBtn) addRoleBtn.onclick = async () => {
+    const name = prompt("Название новой роли:");
+    if (!name || !name.trim()) return;
+    const roles = getEffectiveRoles().map(r => ({...r}));
+    const id = "role_" + Date.now().toString(36);
+    roles.push({id, name: name.trim(), testIds: []});
+    const res = await saveRolesToServer(roles);
+    if (!res.ok){ alert("Не удалось создать роль: " + res.reason); return; }
+    ROLES = roles;
+    renderAdmin();
+  };
+  appEl.querySelectorAll("[data-del-role]").forEach(btn => {
+    btn.onclick = async () => {
+      const roleId = btn.dataset.delRole;
+      if (!confirm("Удалить эту роль? Пользователи с этой ролью будут переведены на роль «Пользователь».")) return;
+      const roles = getEffectiveRoles().filter(r => r.id !== roleId).map(r => ({...r}));
+      const res = await saveRolesToServer(roles);
+      if (!res.ok){ alert("Не удалось удалить роль: " + res.reason); return; }
+      ROLES = roles;
+      // Reassign anyone on this role, in every local cache, so nothing keeps pointing at
+      // a role id that no longer exists — then push each reassigned user to the server.
+      [loadProfiles(), loadSyncedProfiles()].forEach((list, i) => {
+        let changed = false;
+        list.forEach(p => { if (p.role === roleId){ p.role = DEFAULT_ROLE_ID; changed = true; pushProfileToServer(p); } });
+        if (changed) (i === 0 ? saveProfiles : saveSyncedProfiles)(list);
+      });
+      renderAdmin();
+    };
+  });
+  appEl.querySelectorAll(".user-role-select").forEach(sel => {
+    sel.onchange = () => {
+      const login = sel.dataset.login;
+      const roleId = sel.value;
+      const synced = loadSyncedProfiles();
+      const syncedIdx = synced.findIndex(p => p.login === login);
+      if (syncedIdx !== -1){ synced[syncedIdx] = {...synced[syncedIdx], role: roleId}; saveSyncedProfiles(synced); }
+      const local = loadProfiles();
+      const localIdx = local.findIndex(p => p.login === login);
+      if (localIdx !== -1){ local[localIdx] = {...local[localIdx], role: roleId}; saveProfiles(local); }
+      const full = localIdx !== -1 ? local[localIdx] : (syncedIdx !== -1 ? synced[syncedIdx] : {login, role: roleId});
+      pushProfileToServer(full);
+    };
+  });
+}
+
+// ---------- QUESTION BANK VIEWER + EDITOR (admin) ----------
+let qbankEditing = null; // null | {sectionTitle, id: string|null (null = adding new), draft:{q,options,correctSet}}
+
+function emptyDraft(){ return { q:"", options:["","","","","","","",""], correctSet:new Set() }; }
+
+function renderQuestionEditForm(sectionTitle, draft, isNew){
+  const optsHtml = draft.options.map((opt, oi) => `
+    <div class="row" style="align-items:center;gap:8px;margin-bottom:6px;">
+      <input type="checkbox" data-cor="${oi}" ${draft.correctSet.has(oi) ? "checked" : ""}>
+      <input type="text" data-opt="${oi}" value="${escapeHtml(opt)}" placeholder="Вариант ${oi+1}" style="flex:1;margin-bottom:0;">
+    </div>`).join("");
+  return `
+    <div class="card" id="qbEditCard" style="border-color:var(--accent);">
+      <h3 style="margin-top:0;">${isNew ? "Новый вопрос" : "Редактирование вопроса"} — ${escapeHtml(sectionTitle)}</h3>
+      <label for="qbQText">Текст вопроса</label>
+      <textarea id="qbQText" rows="3" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:6px;font-size:14px;margin-bottom:14px;">${escapeHtml(draft.q)}</textarea>
+      <label>Варианты ответов (отметьте галочкой правильный(-е) вариант(ы))</label>
+      ${optsHtml}
+      <p class="small muted">Отметите один вариант — вопрос будет с одним правильным ответом; несколько — с множественным выбором.</p>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn" id="qbSave">Сохранить</button>
+        <button class="btn ghost" id="qbCancel">Отмена</button>
+      </div>
+      <p class="small" id="qbFormMsg" style="color:var(--bad);"></p>
+    </div>`;
+}
+
+// The edit/add form now renders inline at the question's own position in the list
+// (see renderQuestionBank), so after re-rendering we just need to keep the page from
+// snapping back to the top — restore the scroll position it had a moment ago.
+function rerenderQbankPreservingScroll(){
+  const y = window.scrollY;
+  renderQuestionBank();
+  window.scrollTo(0, y);
+}
+
+function startAddQuestion(sectionTitle){
+  qbankEditing = { sectionTitle, id: null, draft: emptyDraft() };
+  renderQuestionBank();
+  const el = document.getElementById("qbEditCard"); if (el) el.scrollIntoView({behavior:"smooth", block:"center"});
+}
+function startEditQuestion(sectionTitle, q){
+  qbankEditing = { sectionTitle, id: q.id, draft: { q: q.q, options: q.options.slice(), correctSet: new Set(q.correct) } };
+  renderQuestionBank();
+  const el = document.getElementById("qbEditCard"); if (el) el.scrollIntoView({behavior:"smooth", block:"center"});
+}
+function cancelQbEdit(){ qbankEditing = null; rerenderQbankPreservingScroll(); }
+
+// Saves straight to the server (Google Sheet) and updates this browser's in-memory copy
+// of TESTS on success, so the change is visible here immediately too, without a reload.
+async function saveQbEdit(){
+  const qText = document.getElementById("qbQText").value.trim();
+  const optionInputs = Array.from(document.querySelectorAll('#qbEditCard input[data-opt]'));
+  const options = optionInputs.map(inp => inp.value.trim());
+  const corInputs = Array.from(document.querySelectorAll('#qbEditCard input[data-cor]'));
+  const correct = corInputs.filter(c => c.checked).map(c => Number(c.dataset.cor));
+  const msg = document.getElementById("qbFormMsg");
+  if (!qText){ msg.textContent = "Введите текст вопроса."; return; }
+  if (options.some(o => !o)){ msg.textContent = "Заполните все 8 вариантов ответа."; return; }
+  if (new Set(options).size !== 8){ msg.textContent = "Варианты ответов должны быть уникальными."; return; }
+  if (correct.length === 0){ msg.textContent = "Отметьте хотя бы один правильный вариант."; return; }
+
+  const t = getAllTests().find(x => x.id === qbankTestId);
+  const sec = t.sections.find(s => s.title === qbankEditing.sectionTitle);
+  // 1-based (not the raw 0-based array index) — matches how questions are numbered
+  // everywhere else in the app and in the Questions sheet itself.
+  const sectionOrder = t.sections.indexOf(sec) + 1;
+  const isNew = qbankEditing.id === null;
+  const questionOrder = (isNew ? sec.questions.length : sec.questions.findIndex(q => q.id === qbankEditing.id)) + 1;
+
+  msg.style.color = "var(--muted)"; msg.textContent = "Сохраняю…";
+  const saveBtn = document.getElementById("qbSave"); if (saveBtn) saveBtn.disabled = true;
+  const res = await saveQuestionToServer({
+    id: qbankEditing.id || undefined, testId: t.id, sectionTitle: qbankEditing.sectionTitle,
+    sectionOrder, questionOrder, q: qText, options, correct,
+  });
+  if (!res.ok){
+    msg.style.color = "var(--bad)";
+    msg.textContent = "Не удалось сохранить: " + res.reason + ". Попробуйте ещё раз.";
+    if (saveBtn) saveBtn.disabled = false;
+    return;
+  }
+  const newQ = { id: res.id, q: qText, options, correct };
+  if (isNew) sec.questions.push(newQ);
+  else sec.questions[questionOrder] = newQ;
+  t.totalQuestions = t.sections.reduce((a,s)=>a+s.questions.length, 0);
+  qbankEditing = null;
+  rerenderQbankPreservingScroll();
+}
+
+async function deleteQbQuestion(sectionTitle, q){
+  if (!confirm("Удалить этот вопрос из базы вопросов на сервере? Это затронет всех сотрудников и необратимо.")) return;
+  const t = getAllTests().find(x => x.id === qbankTestId);
+  const res = await deleteQuestionFromServer(q.id);
+  if (!res.ok){ alert("Не удалось удалить вопрос: " + res.reason); return; }
+  const sec = t.sections.find(s => s.title === sectionTitle);
+  sec.questions = sec.questions.filter(x => x.id !== q.id);
+  t.totalQuestions = t.sections.reduce((a,s)=>a+s.questions.length, 0);
+  if (qbankEditing && qbankEditing.id === q.id) qbankEditing = null;
+  rerenderQbankPreservingScroll();
+}
+
+function renderQuestionBank(){
+  if (!isAdmin()){ route = "admin"; return renderAdmin(); }
+  if (!syncConfigured()){
+    appEl.innerHTML = `
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <h2 style="margin:0;">База вопросов</h2>
+          <button class="btn ghost" id="btnBackAdmin">← В админку</button>
+        </div>
+        <p class="small" style="color:var(--bad);">Синхронизация с сервером не настроена. Банк вопросов хранится в Google Таблице и без синхронизации недоступен — настройте её в админке.</p>
+      </div>`;
+    document.getElementById("btnBackAdmin").onclick = () => { route = "admin"; render(); };
+    return;
+  }
+  if (!qbankTestId || !getAllTests().find(t => t.id === qbankTestId)) qbankTestId = (getAllTests()[0] || {}).id || null;
+  if (!qbankTestId){
+    appEl.innerHTML = `
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <h2 style="margin:0;">База вопросов</h2>
+          <button class="btn ghost" id="btnBackAdmin">← В админку</button>
+        </div>
+        <p class="small muted">Тестов пока нет.</p>
+      </div>`;
+    document.getElementById("btnBackAdmin").onclick = () => { route = "admin"; render(); };
+    return;
+  }
+  const t = getAllTests().find(x => x.id === qbankTestId);
+
+  const groups = {};
+  getAllTests().forEach(x => { (groups[x.group] = groups[x.group] || []).push(x); });
+  let optionsHtml = "";
+  for (const g in groups){
+    optionsHtml += `<optgroup label="${escapeHtml(groups[g][0].groupLabel)}">`;
+    groups[g].forEach(x => {
+      optionsHtml += `<option value="${x.id}" ${x.id === qbankTestId ? "selected" : ""}>${escapeHtml(x.positionTitle)} — ${escapeHtml(x.label)}</option>`;
+    });
+    optionsHtml += `</optgroup>`;
+  }
+
+  const qIndex = {};
+  let sectionsHtml = "";
+  let globalQNum = 0;
+  t.sections.forEach(sec => {
+    sectionsHtml += `<div class="section-title">${escapeHtml(sec.title)} <span class="small muted">(${sec.questions.length} вопросов)</span></div>`;
+    sec.questions.forEach((q) => {
+      globalQNum++;
+      qIndex[q.id] = q;
+      // Editing this exact question — show the edit form right here, in place of the
+      // question card, instead of a separate card elsewhere on the page (which used to
+      // force a jump to the top of "База вопросов" and made it hard to find your way
+      // back to the question you were editing).
+      if (qbankEditing && qbankEditing.id !== null && qbankEditing.id === q.id && qbankEditing.sectionTitle === sec.title){
+        sectionsHtml += renderQuestionEditForm(sec.title, qbankEditing.draft, false);
+        return;
+      }
+      const isMulti = q.correct.length > 1;
+      const optsHtml = q.options.map((opt, oi) => {
+        const isCorrect = q.correct.includes(oi);
+        return `<div class="opt${isCorrect ? " qb-correct" : ""}"><span class="qb-check">${isCorrect ? "✓" : ""}</span><span>${escapeHtml(opt)}</span></div>`;
+      }).join("");
+      sectionsHtml += `
+        <div class="q-block">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;">
+            <div class="q-num">Вопрос ${globalQNum} из ${t.totalQuestions}${isMulti ? " · возможно более одного правильного варианта" : ""}</div>
+            <div class="row" style="gap:6px;">
+              <button class="btn ghost qb-edit-btn" data-sec="${escapeHtml(sec.title)}" data-id="${escapeHtml(q.id)}" style="padding:2px 10px;font-size:12px;">Редактировать</button>
+              <button class="btn ghost qb-del-btn" data-sec="${escapeHtml(sec.title)}" data-id="${escapeHtml(q.id)}" style="padding:2px 10px;font-size:12px;color:var(--bad);">Удалить</button>
+            </div>
+          </div>
+          <div class="q-text">${escapeHtml(q.q)}</div>
+          ${optsHtml}
+        </div>`;
+    });
+    // Adding a new question to this section — show the form right after its question
+    // list, in the same spot as before, instead of jumping elsewhere.
+    if (qbankEditing && qbankEditing.id === null && qbankEditing.sectionTitle === sec.title){
+      sectionsHtml += renderQuestionEditForm(sec.title, qbankEditing.draft, true);
+    }
+    sectionsHtml += `<div class="row" style="margin:4px 0 24px;"><button class="btn secondary qb-add-btn" data-sec="${escapeHtml(sec.title)}" style="font-size:13px;">+ Добавить вопрос в раздел «${escapeHtml(sec.title)}»</button></div>`;
+  });
+
+  appEl.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <h2 style="margin:0;">База вопросов</h2>
+        <button class="btn ghost" id="btnBackAdmin">← В админку</button>
+      </div>
+      <p class="small muted">Правильные варианты отмечены галочкой и выделены зелёным. Изменения сохраняются в Google Таблицу сразу и видны всем, кто откроет приложение. Видно только администратору.</p>
+      <label for="qbankSelect">Тест</label>
+      <select id="qbankSelect" style="width:100%;">${optionsHtml}</select>
+      <p class="small muted" style="margin-top:8px;">${t.totalQuestions} вопросов, ${t.sections.length} разделов</p>
+    </div>
+    <div class="card">
+      ${sectionsHtml}
+    </div>
+  `;
+  document.getElementById("btnBackAdmin").onclick = () => { qbankEditing = null; route = "admin"; render(); };
+  document.getElementById("qbankSelect").onchange = (e) => { qbankEditing = null; qbankTestId = e.target.value; renderQuestionBank(); };
+  appEl.querySelectorAll(".qb-add-btn").forEach(btn => { btn.onclick = () => startAddQuestion(btn.dataset.sec); });
+  appEl.querySelectorAll(".qb-edit-btn").forEach(btn => { btn.onclick = () => startEditQuestion(btn.dataset.sec, qIndex[btn.dataset.id]); });
+  appEl.querySelectorAll(".qb-del-btn").forEach(btn => { btn.onclick = () => deleteQbQuestion(btn.dataset.sec, qIndex[btn.dataset.id]); });
+  const saveBtn = document.getElementById("qbSave"); if (saveBtn) saveBtn.onclick = saveQbEdit;
+  const cancelBtn = document.getElementById("qbCancel"); if (cancelBtn) cancelBtn.onclick = cancelQbEdit;
+}
+
+// Removes an attempt everywhere it's tracked: local store, the "don't resurrect on
+// sync" tombstone list, and (best-effort) the server sheet, so it doesn't come back
+// on the next "Синхронизировать сейчас".
+async function deleteAttempt(id){
+  const store = loadResults().filter(x => x.id !== id);
+  saveResults(store);
+  addDeletedId(id);
+  if (syncConfigured()){
+    return await deleteResultFromServer(id);
+  }
+  return {ok:true, reason:"not-configured"};
+}
+
+function renderUserDetail(login, u){
+  const box = document.getElementById("userDetail");
+  // Aggregate per-section stats across all attempts for this user, grouped by test.
+  const byTest = {};
+  u.attempts.forEach(a => { (byTest[a.testId] = byTest[a.testId] || []).push(a); });
+
+  let html = `<div class="card"><h2>${escapeHtml(u.fullName)} <span class="small muted">(${escapeHtml(login)})</span></h2>`;
+  Object.keys(byTest).forEach(testId => {
+    const attempts = byTest[testId].sort((a,b)=>b.dateISO.localeCompare(a.dateISO));
+    const latest = attempts[0];
+    html += `<h3>${escapeHtml(latest.testLabel)} — ${escapeHtml(latest.label)} <span class="small muted">(попыток: ${attempts.length}, последняя: ${fmtDate(latest.dateISO)})</span></h3>`;
+    html += `<table><thead><tr><th>Раздел</th><th>Верно (последняя попытка)</th><th>%</th></tr></thead><tbody>`;
+    latest.sections.forEach(sec => {
+      const sb = bandFor(sec.percent);
+      html += `<tr><td>${escapeHtml(sec.title)}</td><td>${sec.correct}/${sec.total}</td><td><span class="pill ${sb.cls}">${sec.percent.toFixed(0)}%</span></td></tr>`;
+    });
+    html += `</tbody></table>`;
+    const weak = latest.sections.filter(s=>s.percent<60).map(s=>s.title);
+    const strong = latest.sections.filter(s=>s.percent>=85).map(s=>s.title);
+    if (weak.length) html += `<p class="small"><strong>Слабые темы:</strong> ${weak.map(escapeHtml).join(", ")}</p>`;
+    if (strong.length) html += `<p class="small"><strong>Сильные темы:</strong> ${strong.map(escapeHtml).join(", ")}</p>`;
+
+    html += `<table style="margin-top:10px;"><thead><tr><th>Попытка</th><th>Дата</th><th>Результат</th><th></th></tr></thead><tbody>`;
+    attempts.forEach((a, idx) => {
+      const b = bandFor(a.percent);
+      const hasDetails = Array.isArray(a.details) && a.details.length > 0;
+      html += `<tr>
+        <td>${attempts.length - idx}${idx===0 ? " (последняя)" : ""}</td>
+        <td>${fmtDate(a.dateISO)}</td>
+        <td>${a.correctCount}/${a.totalQuestions} <span class="pill ${b.cls}">${a.percent.toFixed(0)}%</span></td>
+        <td>
+          ${hasDetails ? `<button class="btn ghost" data-attempt="${a.id}">Вопросы и ответы</button> <button class="btn ghost" data-download-report="${a.id}">Скачать отчёт</button>` : `<span class="small muted">детализация недоступна</span>`}
+          <button class="btn ghost" data-delete-attempt="${a.id}" style="color:var(--bad);border-color:var(--bad);">Удалить</button>
+        </td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  });
+  html += `</div>`;
+  box.innerHTML = html;
+  box.querySelectorAll("[data-attempt]").forEach(btn => {
+    btn.onclick = () => { attemptDetailId = btn.dataset.attempt; attemptDetailBack = "admin"; route = "attemptDetail"; render(); };
+  });
+  box.querySelectorAll("[data-download-report]").forEach(btn => {
+    btn.onclick = () => {
+      const a = loadResults().find(x => x.id === btn.dataset.downloadReport);
+      if (a) downloadHTML(buildReportHTML(a), reportFilename(a));
+    };
+  });
+  box.querySelectorAll("[data-delete-attempt]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Удалить эту попытку без возможности восстановления? Она будет удалена и локально, и (если настроена синхронизация) из Google-таблицы.")) return;
+      btn.disabled = true;
+      btn.textContent = "Удаляю…";
+      const res = await deleteAttempt(btn.dataset.deleteAttempt);
+      if (!res.ok && res.reason !== "not-configured"){
+        alert("Удалено локально, но не удалось удалить на сервере: " + res.reason + "\nПри следующей синхронизации запись не вернётся — она помечена как удалённая, но стоит проверить сервер вручную, если это важно.");
+      }
+      refreshAdminAndReopenUser(login);
+    };
+  });
+  box.scrollIntoView({behavior:"smooth"});
+}
+
+function refreshAdminAndReopenUser(login){
+  renderAdmin();
+  if (!login) return;
+  const attempts = loadResults().filter(r => r.login === login);
+  if (attempts.length){
+    renderUserDetail(login, {fullName: attempts[0].fullName, login, attempts});
+  }
+}
+
+// ---------- standalone report export (self-contained HTML file for handing to the candidate) ----------
+function buildReportHTML(r){
+  const details = Array.isArray(r.details) ? r.details : [];
+  const b = bandFor(r.percent);
+  const sections = Array.isArray(r.sections) ? r.sections : [];
+
+  const sectionsHtml = sections.length ? `
+    <table>
+      <thead><tr><th>Раздел</th><th>Верно</th><th>Всего</th><th>%</th></tr></thead>
+      <tbody>
+        ${sections.map(sec => `<tr><td>${escapeHtml(sec.title)}</td><td>${sec.correct}</td><td>${sec.total}</td><td>${sec.percent.toFixed(1)}%</td></tr>`).join("")}
+      </tbody>
+    </table>` : "";
+
+  let qHtml = "";
+  if (!details.length){
+    qHtml = `<p class="small muted">Подробная детализация по вопросам недоступна для этой попытки (она сдана до появления этой функции).</p>`;
+  } else {
+    details.forEach((d, i) => {
+      const optsHtml = d.options.map((opt, oi) => {
+        const isCorrect = d.correctIdx.includes(oi);
+        const isGiven = d.givenIdx.includes(oi);
+        let cls = "";
+        if (isCorrect) cls = " qb-correct";
+        if (isGiven && !isCorrect) cls = " attempt-wrong";
+        let mark = "";
+        if (isCorrect) mark = "✓";
+        else if (isGiven) mark = "✗";
+        return `<div class="opt${cls}"><span class="qb-check">${mark}</span><span>${escapeHtml(opt)}</span>${isGiven ? ` <span class="small muted">(ответ тестируемого)</span>` : ""}</div>`;
+      }).join("");
+      qHtml += `
+        <div class="q-block ${d.isCorrect ? "" : "attempt-q-wrong"}">
+          <div class="q-num">Вопрос ${i+1} из ${details.length} · ${escapeHtml(d.sectionTitle)} · ${d.isCorrect ? "верно" : "неверно"}</div>
+          <div class="q-text">${escapeHtml(d.q)}</div>
+          ${optsHtml}
+        </div>`;
+    });
+  }
+
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Отчёт — ${escapeHtml(r.fullName)} — ${escapeHtml(r.testLabel)}</title>
+<style>
+  :root{
+    --bg:#f4f6f9; --panel:#ffffff; --border:#dde3ea; --text:#1c2733; --muted:#647082;
+    --accent:#2563eb; --good:#16a34a; --warn:#d97706; --bad:#dc2626;
+    --good-bg:#eafaf0; --warn-bg:#fff7e6; --bad-bg:#fdecec;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:var(--panel);border-bottom:1px solid var(--border);padding:14px 24px;}
+  header h1{font-size:18px;margin:0;}
+  main{max-width:980px;margin:0 auto;padding:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:20px;}
+  h2{margin-top:0;font-size:20px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;}
+  .pill.good{background:var(--good-bg);color:var(--good);}
+  .pill.warn{background:var(--warn-bg);color:var(--warn);}
+  .pill.bad{background:var(--bad-bg);color:var(--bad);}
+  .q-block{border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px;}
+  .q-num{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .q-text{font-size:15px;font-weight:600;margin-bottom:10px;}
+  .opt{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:14px;}
+  .muted{color:var(--muted);}
+  .small{font-size:12px;color:var(--muted);}
+  .opt.qb-correct{background:var(--good-bg);color:var(--good);font-weight:600;border-radius:6px;padding:6px 8px;}
+  .qb-check{width:16px;flex:0 0 16px;font-weight:700;}
+  .opt.attempt-wrong{background:var(--bad-bg);color:var(--bad);font-weight:600;border-radius:6px;padding:6px 8px;}
+  .q-block.attempt-q-wrong{border-color:var(--bad);}
+  .no-print{}
+  .btn{display:inline-block;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:10px 18px;font-size:14px;cursor:pointer;}
+  @media print{
+    .no-print{display:none !important;}
+    header{display:none !important;}
+    body{background:#fff;}
+    .card{border:none;box-shadow:none;padding:0;margin-bottom:16px;break-inside:avoid;}
+    .q-block{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<header><h1>Отчёт по результатам тестирования</h1></header>
+<main>
+  <div class="card no-print">
+    <button class="btn" onclick="window.print()">Печать / сохранить как PDF</button>
+  </div>
+  <div class="card">
+    <h2>${escapeHtml(r.fullName)} <span class="small muted">(${escapeHtml(r.login)})</span></h2>
+    <p><strong>${escapeHtml(r.testLabel)} — ${escapeHtml(r.label)}</strong></p>
+    <p class="small muted">Дата прохождения: ${fmtDate(r.dateISO)}</p>
+    <p>Результат: <strong>${r.correctCount}/${r.totalQuestions}</strong> (${r.percent.toFixed(1)}%) — <span class="pill ${b.cls}">${b.label}</span></p>
+  </div>
+  ${sectionsHtml ? `<div class="card"><h2>Разбивка по разделам</h2>${sectionsHtml}</div>` : ""}
+  <div class="card">
+    <h2>Вопросы и ответы</h2>
+    ${qHtml}
+  </div>
+</main>
+</body>
+</html>`;
+}
+
+function reportFilename(r){
+  const namePart = String(r.fullName || r.login || "candidate").replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "");
+  const datePart = (r.dateISO || "").slice(0,10);
+  return `Отчёт_${namePart}_${datePart}.html`;
+}
+
+// ---------- ATTEMPT DETAIL (per-question review, printable) ----------
+function renderAttemptDetail(){
+  if (!isAdmin()){ route = "admin"; return renderAdmin(); }
+  const r = loadResults().find(x => x.id === attemptDetailId);
+  if (!r){
+    appEl.innerHTML = `<div class="card"><p>Попытка не найдена.</p><button class="btn secondary no-print" id="backBtn">Назад</button></div>`;
+    document.getElementById("backBtn").onclick = () => { route = attemptDetailBack; render(); };
+    return;
+  }
+  const details = Array.isArray(r.details) ? r.details : [];
+  const b = bandFor(r.percent);
+
+  let qHtml = "";
+  if (!details.length){
+    qHtml = `<p class="muted small">Подробная детализация по вопросам недоступна для этой попытки (она сдана до появления этой функции).</p>`;
+  } else {
+    details.forEach((d, i) => {
+      const optsHtml = d.options.map((opt, oi) => {
+        const isCorrect = d.correctIdx.includes(oi);
+        const isGiven = d.givenIdx.includes(oi);
+        let cls = "";
+        if (isCorrect) cls = " qb-correct";
+        if (isGiven && !isCorrect) cls = " attempt-wrong";
+        let mark = "";
+        if (isCorrect) mark = "✓";
+        else if (isGiven) mark = "✗";
+        return `<div class="opt${cls}"><span class="qb-check">${mark}</span><span>${escapeHtml(opt)}</span>${isGiven ? ` <span class="small muted">(ответ тестируемого)</span>` : ""}</div>`;
+      }).join("");
+      qHtml += `
+        <div class="q-block ${d.isCorrect ? "" : "attempt-q-wrong"}">
+          <div class="q-num">Вопрос ${i+1} из ${details.length} · ${escapeHtml(d.sectionTitle)} · ${d.isCorrect ? "верно" : "неверно"}</div>
+          <div class="q-text">${escapeHtml(d.q)}</div>
+          ${optsHtml}
+        </div>`;
+    });
+  }
+
+  appEl.innerHTML = `
+    <div class="card no-print">
+      <button class="btn ghost" id="backBtn">← Назад</button>
+      <button class="btn secondary" id="printBtn" style="margin-left:8px;">Печать</button>
+      <button class="btn secondary" id="downloadReportBtn" style="margin-left:8px;">Скачать отчёт</button>
+      <button class="btn ghost" id="deleteBtn" style="margin-left:8px;color:var(--bad);border-color:var(--bad);">Удалить попытку</button>
+    </div>
+    <div class="card">
+      <h2>${escapeHtml(r.fullName)} <span class="small muted">(${escapeHtml(r.login)})</span></h2>
+      <p><strong>${escapeHtml(r.testLabel)} — ${escapeHtml(r.label)}</strong></p>
+      <p class="small muted">Дата: ${fmtDate(r.dateISO)}</p>
+      <p>Результат: <strong>${r.correctCount}/${r.totalQuestions}</strong> (${r.percent.toFixed(1)}%) — <span class="pill ${b.cls}">${b.label}</span></p>
+    </div>
+    <div class="card">
+      <h2>Вопросы и ответы</h2>
+      ${qHtml}
+    </div>
+  `;
+  document.getElementById("backBtn").onclick = () => { route = attemptDetailBack; render(); };
+  document.getElementById("printBtn").onclick = () => window.print();
+  document.getElementById("downloadReportBtn").onclick = () => downloadHTML(buildReportHTML(r), reportFilename(r));
+  document.getElementById("deleteBtn").onclick = async () => {
+    if (!confirm("Удалить эту попытку без возможности восстановления? Она будет удалена и локально, и (если настроена синхронизация) из Google-таблицы.")) return;
+    const btn = document.getElementById("deleteBtn");
+    btn.disabled = true; btn.textContent = "Удаляю…";
+    const res = await deleteAttempt(r.id);
+    if (!res.ok && res.reason !== "not-configured"){
+      alert("Удалено локально, но не удалось удалить на сервере: " + res.reason);
+    }
+    route = attemptDetailBack;
+    render();
+  };
+}
+
+// ---------- init ----------
+// TESTS/ROLES no longer ship baked into this file — they're fetched from the server on
+// every load, so the app needs a moment before its first real render. A successful fetch
+// is cached locally as a fallback for a later load with no connection; a first-ever load
+// with neither a server nor a cache is a hard stop (nothing to show).
+const LS_TESTS_CACHE = "att_tests_cache_v1";
+const LS_ROLES_CACHE = "att_roles_cache_v1";
+
+async function bootApp(){
+  if (syncConfigured()){
+    appEl.innerHTML = `<div class="card" style="max-width:420px;margin:40px auto;text-align:center;"><p class="small muted">Загружаю тесты…</p></div>`;
+    const [testsRes, rolesRes] = await Promise.all([fetchTestsFromServer(), fetchRolesFromServer()]);
+    if (testsRes.ok) localStorage.setItem(LS_TESTS_CACHE, JSON.stringify(TESTS));
+    else { try { TESTS = JSON.parse(localStorage.getItem(LS_TESTS_CACHE)) || []; } catch(e){ TESTS = []; } }
+    if (rolesRes.ok) localStorage.setItem(LS_ROLES_CACHE, JSON.stringify(ROLES));
+    else { try { ROLES = JSON.parse(localStorage.getItem(LS_ROLES_CACHE)) || []; } catch(e){ ROLES = []; } }
+
+    if (!testsRes.ok && !TESTS.length){
+      appEl.innerHTML = `
+        <div class="card" style="max-width:480px;margin:40px auto;">
+          <h2>Не удалось загрузить тесты</h2>
+          <p class="small" style="color:var(--bad);">${escapeHtml(testsRes.reason || "")}</p>
+          <p class="small muted">Проверьте интернет-соединение и повторите.</p>
+          <button class="btn" id="btnRetryBoot">Повторить</button>
+        </div>`;
+      document.getElementById("btnRetryBoot").onclick = () => bootApp();
+      return;
+    }
+  }
+
+  const s0 = getSession();
+  if (s0){
+    // If the tab reloaded on its own (see saveNavState above) while an admin screen was
+    // open, go back there instead of dropping to the admin home screen. Routes with no
+    // meaningful state to resume (an in-progress test, a just-submitted result) fall back
+    // to the dashboard — an in-progress test attempt has its own resume prompt there.
+    const nav = loadNavState();
+    const restorableRoutes = ["admin", "qbank", "attemptDetail", "dashboard"];
+    if (nav && restorableRoutes.includes(nav.route)){
+      route = nav.route;
+      dashboardGroup = nav.dashboardGroup || null;
+      qbankTestId = nav.qbankTestId || null;
+      attemptDetailId = nav.attemptDetailId || null;
+      attemptDetailBack = nav.attemptDetailBack || "admin";
+    } else {
+      route = "dashboard";
+    }
+  } else {
+    route = "login";
+  }
+  render();
+}
+
+bootApp();
+</script>
+</body>
+</html>
