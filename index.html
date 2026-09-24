@@ -691,7 +691,11 @@ function renderHeader(){
   // ADMIN_PASSWORD gate inside renderAdmin() itself stays as a second layer of defense.
   const currentProfile = getCurrentProfile(s.login) || s;
   const showAdminBtn = hasFullAccess(currentProfile);
+  // "Прервать тест" lives up here, away from the answer/navigation buttons, so it isn't hit
+  // by accident; its onclick is wired in renderTest().
+  const inTest = route === "test" && currentTest;
   whoBox.innerHTML = `
+    ${inTest ? `<button id="btnQuit" style="opacity:0.65;">Прервать тест</button>` : ""}
     <span>${escapeHtml(s.fullName || s.login)}</span>
     <button id="navDash">Кабинет</button>
     <button id="navProfile">Профиль</button>
@@ -1048,10 +1052,7 @@ function renderTest(){
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;">
         <div><strong>${escapeHtml(t.positionTitle)}</strong> — ${escapeHtml(t.label)}</div>
-        <div class="row" style="align-items:center;gap:10px;">
-          <div class="small muted">Отвечено: ${answered}/${total}</div>
-          <button class="btn ghost" id="btnQuit" style="font-size:12px;padding:2px 10px;opacity:0.65;">Прервать тест</button>
-        </div>
+        <div class="small muted">Отвечено: ${answered}/${total}</div>
       </div>
       <div class="row" style="justify-content:space-between;align-items:center;">
         <button class="btn ghost" id="btnPrev" ${i===0?"disabled":""}>Назад</button>
