@@ -166,7 +166,7 @@ function saveCurrentProgress(){
     testId: currentTest.id,
     flat: currentTest.flat.map(q => ({
       sectionTitle: q.sectionTitle, q: q.q, displayOptions: q.displayOptions,
-      correctIdx: [...q.correctSet], isMulti: q.isMulti,
+      correctIdx: [...q.correctSet], isMulti: q.isMulti, tags: q.tags,
     })),
     answers: currentAttempt.answers.map(a => [...a]),
     idx: currentAttempt.idx,
@@ -570,6 +570,7 @@ async function pullResultsFromServer(){
         dateISO: raw.dateISO, totalQuestions: Number(raw.totalQuestions), correctCount: Number(raw.correctCount),
         percent: Number(raw.percent), bandLabel: raw.bandLabel, durationSec: Number(raw.durationSec),
         sections: typeof raw.sections === "string" ? JSON.parse(raw.sections) : raw.sections,
+        tags: typeof raw.tags === "string" ? JSON.parse(raw.tags || "[]") : (raw.tags || []),
         details: typeof raw.details === "string" ? JSON.parse(raw.details) : (raw.details || []),
       };
       store.push(rec); ids.add(rec.id); imported++;
@@ -999,7 +1000,7 @@ function startTest(testId, forceRestart){
     if (resume){
       const flat = saved.flat.map(q => ({
         sectionTitle: q.sectionTitle, q: q.q, displayOptions: q.displayOptions,
-        correctSet: new Set(q.correctIdx), isMulti: q.isMulti,
+        correctSet: new Set(q.correctIdx), isMulti: q.isMulti, tags: q.tags || [],
       }));
       currentTest = {...meta, id: testId, flat};
       currentAttempt = { answers: saved.answers.map(a => new Set(a)), startedAt: saved.startedAt, idx: Math.min(saved.idx, flat.length-1) };
@@ -1023,6 +1024,7 @@ function startTest(testId, forceRestart){
         displayOptions: order.map(i => q.options[i]),
         correctSet: new Set(q.correct.map(origIdx => order.indexOf(origIdx))),
         isMulti: q.correct.length > 1,
+        tags: q.tags || [], // admin-only competency tags (see setQuestionTags in Code.gs) — never shown to the test-taker
       });
     });
   });
@@ -1066,7 +1068,7 @@ function renderTest(){
         ${optsHtml}
       </div>
     </div>
-    ${isLast ? `
+    ${isLast && currentAttempt.answers[i].size > 0 ? `
     <div class="card" style="border-color:var(--accent);">
       <h2>Завершение теста</h2>
       <p class="small muted">Это последний вопрос. Отвечено: ${answered} из ${total}. Кнопкой «Назад» можно ещё раз просмотреть и изменить любой ответ перед отправкой.</p>
@@ -1076,12 +1078,16 @@ function renderTest(){
   appEl.querySelectorAll('input[name="opt"]').forEach(inp => {
     inp.onchange = () => {
       const oi = Number(inp.dataset.oi);
+      const hadAnswer = currentAttempt.answers[i].size > 0;
       if (q.isMulti){
         if (inp.checked) currentAttempt.answers[i].add(oi); else currentAttempt.answers[i].delete(oi);
       } else {
         currentAttempt.answers[i] = new Set([oi]);
       }
       saveCurrentProgress();
+      // The "Завершение теста" card on the last question appears only once it's answered —
+      // re-render when that state flips so the card shows/hides right away.
+      if (isLast && hadAnswer !== (currentAttempt.answers[i].size > 0)) renderTest();
     };
   });
   const confirmUnanswered = () => currentAttempt.answers[i].size > 0
@@ -1115,6 +1121,7 @@ function finishTest(){
   const t = currentTest;
   const s = getSession();
   const sectionStats = {};
+  const tagStats = {}; // admin-only "звезда": {tag: {total, correct}} — see renderAdminCompetencyStar()
   let correctCount = 0;
   const details = [];
   t.flat.forEach((q, i) => {
@@ -1124,6 +1131,11 @@ function finishTest(){
     const st = sectionStats[q.sectionTitle] = sectionStats[q.sectionTitle] || {total:0, correct:0};
     st.total++;
     if (isCorrect) st.correct++;
+    (q.tags || []).forEach(tag => {
+      const ts = tagStats[tag] = tagStats[tag] || {total:0, correct:0};
+      ts.total++;
+      if (isCorrect) ts.correct++;
+    });
     // Self-contained snapshot of this question as shown (shuffled options + which were
     // correct/given), so the attempt can be reviewed or printed later even if the
     // question bank changes afterward.
@@ -1134,6 +1146,7 @@ function finishTest(){
       correctIdx: [...q.correctSet].sort((a,b)=>a-b),
       givenIdx: [...given].sort((a,b)=>a-b),
       isCorrect,
+      tags: q.tags || [],
     });
   });
   const total = t.flat.length;
@@ -1143,6 +1156,12 @@ function finishTest(){
   const sections = Object.keys(sectionStats).map(title => {
     const st = sectionStats[title];
     return {title, total: st.total, correct: st.correct, percent: st.total ? st.correct/st.total*100 : 0};
+  });
+  // Admin-only "звезда" input: per-competency-tag correctness for this attempt. Empty
+  // object for a test whose questions haven't been tagged yet — the star simply skips it.
+  const tags = Object.keys(tagStats).map(tag => {
+    const ts = tagStats[tag];
+    return {tag, total: ts.total, correct: ts.correct, percent: ts.total ? ts.correct/ts.total*100 : 0};
   });
 
   const result = {
@@ -1161,6 +1180,7 @@ function finishTest(){
     bandLabel: band.label,
     durationSec,
     sections,
+    tags,
     details,
   };
   const results = loadResults();
@@ -1941,6 +1961,121 @@ async function deleteAttempt(id){
   return {ok:true, reason:"not-configured"};
 }
 
+// ---------- admin-only "звезда": competency radar across a user's attempts ----------
+const COMPETENCY_TAGS = ["engineering", "management", "communication", "quality_risk", "economics"];
+const TAG_LABELS = {
+  engineering: "Инженерная глубина",
+  management: "Управление и организация",
+  communication: "Взаимодействие",
+  quality_risk: "Качество и риски",
+  economics: "Экономика",
+};
+function normQ(s){ return String(s || "").toLowerCase().replace(/[^а-яa-z0-9]/g, ""); }
+
+// {testId: {normalizedQuestionText: tags[]}} built from the LIVE bank — used to backfill
+// tag stats for attempts recorded before question tagging existed (those rows have no
+// r.tags/d.tags of their own, only the question text as it was shown at the time).
+function buildQuestionTagIndex(){
+  const idx = {};
+  getAllTests().forEach(t => {
+    const byQ = idx[t.id] = idx[t.id] || {};
+    t.sections.forEach(s => s.questions.forEach(q => { byQ[normQ(q.q)] = q.tags || []; }));
+  });
+  return idx;
+}
+
+// Aggregates {tag: {total, correct}} across every attempt in `attempts`. Prefers each
+// attempt's own recorded tag stats (a.tags, present on attempts taken after tagging was
+// added); for older attempts without it, falls back to matching each answered question's
+// text against the current bank via `tagIndex` — best-effort, since a question's text or
+// tags may have changed since the attempt, and an attempt whose test was later deleted
+// yields no match at all (silently skipped, not an error).
+function computeUserTagStats(attempts, tagIndex){
+  const stats = {};
+  const bump = (tag, isCorrect) => {
+    const s = stats[tag] = stats[tag] || {total:0, correct:0};
+    s.total++;
+    if (isCorrect) s.correct++;
+  };
+  attempts.forEach(a => {
+    if (Array.isArray(a.tags) && a.tags.length){
+      a.tags.forEach(t => {
+        const s = stats[t.tag] = stats[t.tag] || {total:0, correct:0};
+        s.total += t.total; s.correct += t.correct;
+      });
+      return;
+    }
+    if (!Array.isArray(a.details)) return;
+    const byQ = tagIndex[a.testId] || {};
+    a.details.forEach(d => {
+      const tags = (Array.isArray(d.tags) && d.tags.length) ? d.tags : (byQ[normQ(d.q)] || []);
+      tags.forEach(tag => bump(tag, !!d.isCorrect));
+    });
+  });
+  return stats;
+}
+
+// Pure SVG radar/star, one axis per competency tag, 0-100% from center to the tag's label.
+// Tags with no data (total===0) are plotted at 0 and called out below the chart instead of
+// silently looking like "0% — weak", so an admin doesn't misread "no data" as "bad score".
+function renderCompetencyRadarSVG(stats){
+  const n = COMPETENCY_TAGS.length;
+  const cx = 150, cy = 150, R = 110;
+  const angle = i => -Math.PI/2 + i * (2*Math.PI/n);
+  const noData = [];
+  const points = COMPETENCY_TAGS.map((tag, i) => {
+    const s = stats[tag];
+    const pct = s && s.total ? (s.correct/s.total*100) : 0;
+    if (!s || !s.total) noData.push(tag);
+    const r = R * pct/100;
+    const a = angle(i);
+    return {x: cx + r*Math.cos(a), y: cy + r*Math.sin(a), pct, tag, s};
+  });
+  const rings = [20,40,60,80,100].map(pct => {
+    const r = R*pct/100;
+    const ringPts = COMPETENCY_TAGS.map((_, i) => { const a = angle(i); return `${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`; }).join(" ");
+    return `<polygon points="${ringPts}" fill="none" stroke="var(--border)" stroke-width="1"/>`;
+  }).join("");
+  const axes = COMPETENCY_TAGS.map((_, i) => { const a = angle(i); return `<line x1="${cx}" y1="${cy}" x2="${cx+R*Math.cos(a)}" y2="${cy+R*Math.sin(a)}" stroke="var(--border)" stroke-width="1"/>`; }).join("");
+  const poly = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const labels = COMPETENCY_TAGS.map((tag, i) => {
+    const a = angle(i);
+    const lr = R + 26;
+    const x = cx + lr*Math.cos(a), y = cy + lr*Math.sin(a);
+    const anchor = Math.cos(a) > 0.3 ? "start" : (Math.cos(a) < -0.3 ? "end" : "middle");
+    const p = points[i];
+    const valueStr = p.s && p.s.total ? `${p.pct.toFixed(0)}%` : "нет данных";
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="12" fill="var(--text)">${escapeHtml(TAG_LABELS[tag])}</text>
+      <text x="${x.toFixed(1)}" y="${(y+15).toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="11" fill="var(--muted)">${valueStr}</text>`;
+  }).join("");
+  const dots = points.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="var(--accent)"/>`).join("");
+  return `<svg viewBox="0 0 300 300" style="width:100%;max-width:420px;display:block;margin:0 auto;">
+    ${rings}${axes}
+    <polygon points="${poly}" fill="var(--accent)" fill-opacity="0.22" stroke="var(--accent)" stroke-width="2"/>
+    ${dots}${labels}
+  </svg>`;
+}
+
+function renderCompetencyStarCard(login, u){
+  const box = document.getElementById("starBox-" + cssEscape(login));
+  if (!box) return;
+  const tagIndex = buildQuestionTagIndex();
+  const stats = computeUserTagStats(u.attempts, tagIndex);
+  const anyData = COMPETENCY_TAGS.some(t => stats[t] && stats[t].total);
+  if (!anyData){
+    box.innerHTML = `<p class="small muted">По попыткам этого пользователя пока нет данных с тегами компетенций (вопросы без тегов или тест был удалён из банка).</p>`;
+    return;
+  }
+  const noDataTags = COMPETENCY_TAGS.filter(t => !stats[t] || !stats[t].total);
+  box.innerHTML = `
+    ${renderCompetencyRadarSVG(stats)}
+    <p class="small muted" style="text-align:center;margin-top:8px;">Звезда построена по всем ${u.attempts.length} попытк${u.attempts.length===1?"е":(u.attempts.length<5?"ам":"ам")} этого пользователя. Для попыток без сохранённых тегов теги подобраны по текущему банку вопросов — если вопрос с тех пор изменился или тест удалён, он может не попасть в подсчёт.</p>
+    ${noDataTags.length ? `<p class="small muted" style="text-align:center;">Без данных: ${noDataTags.map(t => escapeHtml(TAG_LABELS[t])).join(", ")}.</p>` : ""}
+  `;
+}
+// CSS.escape polyfill-free minimal helper for using a login as a DOM id fragment.
+function cssEscape(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g, c => "_" + c.charCodeAt(0) + "_"); }
+
 function renderUserDetail(login, u){
   const box = document.getElementById("userDetail");
   // Aggregate per-section stats across all attempts for this user, grouped by test.
@@ -1948,6 +2083,10 @@ function renderUserDetail(login, u){
   u.attempts.forEach(a => { (byTest[a.testId] = byTest[a.testId] || []).push(a); });
 
   let html = `<div class="card"><h2>${escapeHtml(u.fullName)} <span class="small muted">(${escapeHtml(login)})</span></h2>`;
+  if (u.attempts.length){
+    html += `<button class="btn secondary" id="btnToggleStar">Звезда компетенций</button>
+    <div id="starBox-${cssEscape(login)}" style="display:none;margin-top:14px;"></div>`;
+  }
   Object.keys(byTest).forEach(testId => {
     const attempts = byTest[testId].sort((a,b)=>b.dateISO.localeCompare(a.dateISO));
     const latest = attempts[0];
@@ -1981,6 +2120,14 @@ function renderUserDetail(login, u){
   });
   html += `</div>`;
   box.innerHTML = html;
+  const toggleStarBtn = document.getElementById("btnToggleStar");
+  if (toggleStarBtn) toggleStarBtn.onclick = () => {
+    const starBox = document.getElementById("starBox-" + cssEscape(login));
+    const show = starBox.style.display === "none";
+    starBox.style.display = show ? "block" : "none";
+    toggleStarBtn.textContent = show ? "Скрыть звезду компетенций" : "Звезда компетенций";
+    if (show) renderCompetencyStarCard(login, u);
+  };
   box.querySelectorAll("[data-attempt]").forEach(btn => {
     btn.onclick = () => { attemptDetailId = btn.dataset.attempt; attemptDetailBack = "admin"; route = "attemptDetail"; render(); };
   });
