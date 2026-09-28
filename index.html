@@ -2018,15 +2018,26 @@ function computeUserTagStats(attempts, tagIndex){
 // Pure SVG radar/star, one axis per competency tag, 0-100% from center to the tag's label.
 // Tags with no data (total===0) are plotted at 0 and called out below the chart instead of
 // silently looking like "0% — weak", so an admin doesn't misread "no data" as "bad score".
+// Pre-wrapped (short) label lines per tag — long single-line Russian labels ("Управление и
+// организация") were getting clipped by the SVG viewBox edge at the side vertices; wrapping
+// them to 2 short lines keeps every line's rendered width well inside the label column.
+const TAG_LABEL_LINES = {
+  engineering: ["Инженерная", "глубина"],
+  management: ["Управление и", "организация"],
+  communication: ["Взаимодействие"],
+  quality_risk: ["Качество и", "риски"],
+  economics: ["Экономика"],
+};
 function renderCompetencyRadarSVG(stats){
   const n = COMPETENCY_TAGS.length;
-  const cx = 150, cy = 150, R = 110;
+  // Wide viewBox (not square) so the side vertices have real horizontal room for their
+  // label columns without extending past x=0 / x=W and getting silently clipped by the
+  // SVG's own edge (an SVG root clips anything outside its viewBox by default).
+  const W = 460, H = 340, cx = W/2, cy = 160, R = 95;
   const angle = i => -Math.PI/2 + i * (2*Math.PI/n);
-  const noData = [];
   const points = COMPETENCY_TAGS.map((tag, i) => {
     const s = stats[tag];
     const pct = s && s.total ? (s.correct/s.total*100) : 0;
-    if (!s || !s.total) noData.push(tag);
     const r = R * pct/100;
     const a = angle(i);
     return {x: cx + r*Math.cos(a), y: cy + r*Math.sin(a), pct, tag, s};
@@ -2040,16 +2051,22 @@ function renderCompetencyRadarSVG(stats){
   const poly = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   const labels = COMPETENCY_TAGS.map((tag, i) => {
     const a = angle(i);
-    const lr = R + 26;
+    const lr = R + 24;
     const x = cx + lr*Math.cos(a), y = cy + lr*Math.sin(a);
-    const anchor = Math.cos(a) > 0.3 ? "start" : (Math.cos(a) < -0.3 ? "end" : "middle");
+    const anchor = Math.cos(a) > 0.15 ? "start" : (Math.cos(a) < -0.15 ? "end" : "middle");
     const p = points[i];
     const valueStr = p.s && p.s.total ? `${p.pct.toFixed(0)}%` : "нет данных";
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="12" fill="var(--text)">${escapeHtml(TAG_LABELS[tag])}</text>
-      <text x="${x.toFixed(1)}" y="${(y+15).toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="11" fill="var(--muted)">${valueStr}</text>`;
+    const lines = TAG_LABEL_LINES[tag];
+    // Stack the label's line(s) then the value line downward from the anchor point, each
+    // as its own <text> (simpler than <tspan> and just as clip-safe once W/H have room).
+    const textLines = lines.map((line, li) =>
+      `<text x="${x.toFixed(1)}" y="${(y+li*14).toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="12" fill="var(--text)">${escapeHtml(line)}</text>`
+    ).join("");
+    const valueY = y + lines.length*14;
+    return `${textLines}<text x="${x.toFixed(1)}" y="${valueY.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="11" fill="var(--muted)">${valueStr}</text>`;
   }).join("");
   const dots = points.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="var(--accent)"/>`).join("");
-  return `<svg viewBox="0 0 300 300" style="width:100%;max-width:420px;display:block;margin:0 auto;">
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:560px;display:block;margin:0 auto;">
     ${rings}${axes}
     <polygon points="${poly}" fill="var(--accent)" fill-opacity="0.22" stroke="var(--accent)" stroke-width="2"/>
     ${dots}${labels}
