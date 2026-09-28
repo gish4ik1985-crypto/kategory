@@ -1254,6 +1254,7 @@ const ADMIN_TABS = [
   { id: "tests", label: "Тесты" },
   { id: "import", label: "Импорт результатов" },
   { id: "users", label: "Пользователи" },
+  { id: "results", label: "Результаты" },
 ];
 function renderAdmin(){
   if (!isAdmin()){
@@ -1309,6 +1310,7 @@ function renderAdmin(){
   else if (adminTab === "tests") renderAdminTests(content);
   else if (adminTab === "import") renderAdminImport(content);
   else if (adminTab === "users") renderAdminUsers(content);
+  else if (adminTab === "results") renderAdminResults(content);
 }
 
 // ---------- admin tab: Роли ----------
@@ -1970,6 +1972,8 @@ const TAG_LABELS = {
   quality_risk: "Качество и риски",
   economics: "Экономика",
 };
+// Compact column headers for the comparison table (full names are in TAG_LABELS / the star).
+const TAG_SHORT_LABELS = {engineering: "Инженерия", management: "Управление", communication: "Взаимод.", quality_risk: "Качество", economics: "Экономика"};
 function normQ(s){ return String(s || "").toLowerCase().replace(/[^а-яa-z0-9]/g, ""); }
 
 // {testId: {normalizedQuestionText: tags[]}} built from the LIVE bank — used to backfill
@@ -2028,49 +2032,64 @@ const TAG_LABEL_LINES = {
   quality_risk: ["Качество и", "риски"],
   economics: ["Экономика"],
 };
-function renderCompetencyRadarSVG(stats){
+// Distinct series colors for overlaying several people on one star (comparison mode).
+const RADAR_SERIES_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"];
+function tagPct(stats, tag){ const s = stats && stats[tag]; return s && s.total ? s.correct/s.total*100 : null; }
+
+// Accepts either a single stats object ({tag:{total,correct}}) — the per-person star — or an
+// array of series [{stats, color, name, dashed}] for the comparison overlay. With one series
+// the axis labels carry that series' percentages; with several, the percentages live in the
+// legend/table instead (five numbers per axis would be unreadable).
+function renderCompetencyRadarSVG(input){
+  const series = Array.isArray(input) ? input : [{stats: input, color: "var(--accent)"}];
+  const single = series.length === 1;
   const n = COMPETENCY_TAGS.length;
   // Wide viewBox (not square) so the side vertices have real horizontal room for their
   // label columns without extending past x=0 / x=W and getting silently clipped by the
   // SVG's own edge (an SVG root clips anything outside its viewBox by default).
   const W = 460, H = 340, cx = W/2, cy = 160, R = 95;
   const angle = i => -Math.PI/2 + i * (2*Math.PI/n);
-  const points = COMPETENCY_TAGS.map((tag, i) => {
-    const s = stats[tag];
-    const pct = s && s.total ? (s.correct/s.total*100) : 0;
-    const r = R * pct/100;
-    const a = angle(i);
-    return {x: cx + r*Math.cos(a), y: cy + r*Math.sin(a), pct, tag, s};
-  });
   const rings = [20,40,60,80,100].map(pct => {
     const r = R*pct/100;
     const ringPts = COMPETENCY_TAGS.map((_, i) => { const a = angle(i); return `${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`; }).join(" ");
     return `<polygon points="${ringPts}" fill="none" stroke="var(--border)" stroke-width="1"/>`;
   }).join("");
   const axes = COMPETENCY_TAGS.map((_, i) => { const a = angle(i); return `<line x1="${cx}" y1="${cy}" x2="${cx+R*Math.cos(a)}" y2="${cy+R*Math.sin(a)}" stroke="var(--border)" stroke-width="1"/>`; }).join("");
-  const poly = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const shapes = series.map(ser => {
+    const pts = COMPETENCY_TAGS.map((tag, i) => {
+      const r = R * (tagPct(ser.stats, tag) || 0)/100;
+      const a = angle(i);
+      return {x: cx + r*Math.cos(a), y: cy + r*Math.sin(a)};
+    });
+    const poly = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+    const fillOp = single ? 0.22 : 0.08;
+    const dash = ser.dashed ? ` stroke-dasharray="5 4"` : "";
+    return `<polygon points="${poly}" fill="${ser.color}" fill-opacity="${ser.dashed ? 0 : fillOp}" stroke="${ser.color}" stroke-width="2"${dash}/>` +
+      pts.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${single ? 3.5 : 3}" fill="${ser.color}"/>`).join("");
+  }).join("");
   const labels = COMPETENCY_TAGS.map((tag, i) => {
     const a = angle(i);
     const lr = R + 24;
     const x = cx + lr*Math.cos(a), y = cy + lr*Math.sin(a);
     const anchor = Math.cos(a) > 0.15 ? "start" : (Math.cos(a) < -0.15 ? "end" : "middle");
-    const p = points[i];
-    const valueStr = p.s && p.s.total ? `${p.pct.toFixed(0)}%` : "нет данных";
     const lines = TAG_LABEL_LINES[tag];
-    // Stack the label's line(s) then the value line downward from the anchor point, each
-    // as its own <text> (simpler than <tspan> and just as clip-safe once W/H have room).
+    // Stack the label's line(s) then (single-series only) the value line downward from the
+    // anchor point, each as its own <text> (simpler than <tspan>, just as clip-safe).
     const textLines = lines.map((line, li) =>
       `<text x="${x.toFixed(1)}" y="${(y+li*14).toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="12" fill="var(--text)">${escapeHtml(line)}</text>`
     ).join("");
+    if (!single) return textLines;
+    const pct = tagPct(series[0].stats, tag);
+    const valueStr = pct == null ? "нет данных" : `${pct.toFixed(0)}%`;
     const valueY = y + lines.length*14;
     return `${textLines}<text x="${x.toFixed(1)}" y="${valueY.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="11" fill="var(--muted)">${valueStr}</text>`;
   }).join("");
-  const dots = points.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="var(--accent)"/>`).join("");
+  const legend = single ? "" : `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:center;margin-top:8px;font-size:13px;">` +
+    series.map(ser => `<span style="display:inline-flex;align-items:center;gap:6px;"><span style="display:inline-block;width:18px;height:0;border-top:3px ${ser.dashed ? "dashed" : "solid"} ${ser.color};"></span>${escapeHtml(ser.name || "")}</span>`).join("") +
+    `</div>`;
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:560px;display:block;margin:0 auto;">
-    ${rings}${axes}
-    <polygon points="${poly}" fill="var(--accent)" fill-opacity="0.22" stroke="var(--accent)" stroke-width="2"/>
-    ${dots}${labels}
-  </svg>`;
+    ${rings}${axes}${shapes}${labels}
+  </svg>${legend}`;
 }
 
 function renderCompetencyStarCard(login, u){
@@ -2092,6 +2111,194 @@ function renderCompetencyStarCard(login, u){
 }
 // CSS.escape polyfill-free minimal helper for using a login as a DOM id fragment.
 function cssEscape(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g, c => "_" + c.charCodeAt(0) + "_"); }
+
+// ---------- admin tab "Результаты": per-attempt stars + people comparison ----------
+// Plain module state (not persisted in nav state) — filters reset on reload, which is fine
+// for an analysis view.
+let resFilterTest = "";          // "" = all tests
+let resSearch = "";
+let resSort = {key: "fullName", dir: 1};
+let resSelected = new Set();     // logins overlaid on the comparison star
+let resShowAvg = false;
+let resOpenAttempt = null;       // attempt id whose own star is expanded
+const RES_MAX_OVERLAY = RADAR_SERIES_COLORS.length;
+
+function renderAdminResults(content){
+  const results = loadResults();
+  const testOpts = {};
+  results.forEach(r => { if (!testOpts[r.testId]) testOpts[r.testId] = `${r.testLabel} — ${r.label}`; });
+  if (resFilterTest && !testOpts[resFilterTest]) resFilterTest = "";
+  const optsHtml = Object.keys(testOpts).sort((a,b) => testOpts[a].localeCompare(testOpts[b], "ru"))
+    .map(id => `<option value="${escapeHtml(id)}" ${id === resFilterTest ? "selected" : ""}>${escapeHtml(testOpts[id])}</option>`).join("");
+  content.innerHTML = `
+    <div class="card">
+      <h2>Результаты</h2>
+      <p class="small muted">Звезда компетенций по отдельным попыткам и сравнение сотрудников между собой. Видно только администратору. Для попыток, пройденных до разметки вопросов тегами, теги подбираются по текущему банку вопросов.</p>
+      <div class="row" style="gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="min-width:260px;flex:1;">
+          <label for="resTest">Тест</label>
+          <select id="resTest" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+            <option value="">Все тесты</option>${optsHtml}
+          </select>
+        </div>
+        <div style="min-width:220px;flex:1;">
+          <label for="resSearch">Поиск по ФИО или логину</label>
+          <input type="text" id="resSearch" value="${escapeHtml(resSearch)}" style="margin-bottom:0;">
+        </div>
+      </div>
+    </div>
+    <div id="resBody"></div>`;
+  document.getElementById("resTest").onchange = e => { resFilterTest = e.target.value; resOpenAttempt = null; renderResultsBody(); };
+  document.getElementById("resSearch").oninput = e => { resSearch = e.target.value; renderResultsBody(); };
+  renderResultsBody();
+}
+
+function renderResultsBody(){
+  const body = document.getElementById("resBody");
+  if (!body) return;
+  const tagIndex = buildQuestionTagIndex();
+  const q = resSearch.trim().toLowerCase();
+  const matches = r => !q || String(r.fullName || "").toLowerCase().includes(q) || String(r.login || "").toLowerCase().includes(q);
+  const attempts = loadResults().filter(r => (!resFilterTest || r.testId === resFilterTest) && matches(r));
+
+  // ---- people comparison ----
+  const byLogin = {};
+  attempts.forEach(r => { (byLogin[r.login] = byLogin[r.login] || []).push(r); });
+  const rows = Object.keys(byLogin).map(login => {
+    const list = byLogin[login];
+    const latest = list.slice().sort((a,b) => b.dateISO.localeCompare(a.dateISO))[0];
+    const stats = computeUserTagStats(list, tagIndex);
+    const tot = list.reduce((n, a) => n + (a.totalQuestions || 0), 0);
+    const cor = list.reduce((n, a) => n + (a.correctCount || 0), 0);
+    const row = {login, fullName: latest.fullName || login, attempts: list.length, overall: tot ? cor/tot*100 : null, stats};
+    COMPETENCY_TAGS.forEach(t => { row[t] = tagPct(stats, t); });
+    return row;
+  });
+  const k = resSort.key, dir = resSort.dir;
+  rows.sort((a,b) => {
+    const va = a[k], vb = b[k];
+    if (typeof va === "string" || typeof vb === "string") return dir * String(va||"").localeCompare(String(vb||""), "ru");
+    // "нет данных" (null) always sorts last, whichever direction
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    return dir * (va - vb);
+  });
+  // drop selections that are no longer visible under the current filter
+  const visible = new Set(rows.map(r => r.login));
+  resSelected = new Set([...resSelected].filter(l => visible.has(l)));
+
+  const pctCell = v => v == null ? `<span class="small muted">—</span>` : `<span class="pill ${bandFor(v).cls}">${v.toFixed(0)}%</span>`;
+  const sortHead = (key, label) => {
+    const arrow = resSort.key === key ? (resSort.dir === 1 ? " ▲" : " ▼") : "";
+    return `<th data-sort="${key}" style="cursor:pointer;white-space:nowrap;">${escapeHtml(label)}${arrow}</th>`;
+  };
+  const tableRows = rows.map(r => `<tr>
+      <td><input type="checkbox" data-sel="${escapeHtml(r.login)}" ${resSelected.has(r.login) ? "checked" : ""}></td>
+      <td>${escapeHtml(r.fullName)} <span class="small muted">(${escapeHtml(r.login)})</span></td>
+      <td>${r.attempts}</td>
+      <td>${pctCell(r.overall)}</td>
+      ${COMPETENCY_TAGS.map(t => `<td>${pctCell(r[t])}</td>`).join("")}
+    </tr>`).join("");
+
+  // ---- overlay star ----
+  const series = rows.filter(r => resSelected.has(r.login)).map((r, i) => ({
+    stats: r.stats, color: RADAR_SERIES_COLORS[i % RADAR_SERIES_COLORS.length], name: r.fullName,
+  }));
+  if (resShowAvg && rows.length){
+    // Pooled (question-weighted) average over everyone in the current filter, not a mean
+    // of per-person percentages — someone with 3 attempts weighs more than someone with 1.
+    const pooled = {};
+    rows.forEach(r => COMPETENCY_TAGS.forEach(t => {
+      const s = r.stats[t]; if (!s) return;
+      const p = pooled[t] = pooled[t] || {total:0, correct:0};
+      p.total += s.total; p.correct += s.correct;
+    }));
+    series.push({stats: pooled, color: "#647082", name: `Среднее по выборке (${rows.length} чел.)`, dashed: true});
+  }
+  let overlayHtml;
+  if (!series.length) overlayHtml = `<p class="small muted">Отметьте галочками до ${RES_MAX_OVERLAY} сотрудников в таблице выше, чтобы наложить их звёзды друг на друга.</p>`;
+  else if (series.length === 1 && !series[0].dashed) overlayHtml = renderCompetencyRadarSVG(series[0].stats) + `<p class="small muted" style="text-align:center;">${escapeHtml(series[0].name)}</p>`;
+  else overlayHtml = renderCompetencyRadarSVG(series);
+
+  // ---- attempts list ----
+  const attemptsSorted = attempts.slice().sort((a,b) => b.dateISO.localeCompare(a.dateISO));
+  const LIMIT = 300;
+  const attemptRows = attemptsSorted.slice(0, LIMIT).map(a => {
+    const b = bandFor(a.percent);
+    const open = resOpenAttempt === a.id;
+    let row = `<tr>
+      <td class="small">${fmtDate(a.dateISO)}</td>
+      <td>${escapeHtml(a.fullName || a.login)}</td>
+      <td class="small">${escapeHtml(a.testLabel)} — ${escapeHtml(a.label)}</td>
+      <td>${a.correctCount}/${a.totalQuestions} <span class="pill ${b.cls}">${a.percent.toFixed(0)}%</span></td>
+      <td><button class="btn ghost" data-star="${a.id}">${open ? "Скрыть" : "Звезда"}</button></td>
+    </tr>`;
+    if (open){
+      const st = computeUserTagStats([a], tagIndex);
+      const any = COMPETENCY_TAGS.some(t => st[t] && st[t].total);
+      row += `<tr><td colspan="5">${any ? renderCompetencyRadarSVG(st) : `<p class="small muted">Для этой попытки не нашлось вопросов с тегами (тест удалён или вопросы с тех пор изменены).</p>`}</td></tr>`;
+    }
+    return row;
+  }).join("");
+
+  body.innerHTML = `
+    <div class="card">
+      <h2>Сравнение сотрудников</h2>
+      <p class="small muted">${resFilterTest ? "Только попытки выбранного теста." : "Все попытки всех тестов."} Процент по компетенции — доля верных ответов на вопросы с этим тегом по всем попыткам человека в выборке. Нажмите на заголовок колонки для сортировки.</p>
+      ${rows.length ? `
+      <div style="overflow-x:auto;"><table><thead><tr>
+        <th></th>${sortHead("fullName","Сотрудник")}${sortHead("attempts","Попыток")}${sortHead("overall","Общий")}
+        ${COMPETENCY_TAGS.map(t => sortHead(t, TAG_SHORT_LABELS[t])).join("")}
+      </tr></thead><tbody>${tableRows}</tbody></table></div>
+      <div class="row" style="margin-top:10px;gap:14px;align-items:center;flex-wrap:wrap;">
+        <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--text);font-size:13px;"><input type="checkbox" id="resAvg" ${resShowAvg ? "checked" : ""}> Показать среднее по выборке</label>
+        ${resSelected.size ? `<button class="btn ghost" id="resClearSel">Снять все отметки</button>` : ""}
+        <button class="btn secondary" id="resExportCsv">Скачать сравнение (CSV)</button>
+      </div>
+      <div style="margin-top:16px;">${overlayHtml}</div>` : `<p class="small muted">Нет попыток под выбранный фильтр.</p>`}
+    </div>
+    <div class="card">
+      <h2>Все попытки${attempts.length > LIMIT ? ` <span class="small muted">(показаны последние ${LIMIT} из ${attempts.length})</span>` : ""}</h2>
+      ${attempts.length ? `<div style="overflow-x:auto;"><table><thead><tr><th>Дата</th><th>Сотрудник</th><th>Тест</th><th>Результат</th><th></th></tr></thead><tbody>${attemptRows}</tbody></table></div>` : `<p class="small muted">Нет попыток.</p>`}
+    </div>`;
+
+  body.querySelectorAll("[data-sort]").forEach(th => {
+    th.onclick = () => {
+      const key = th.dataset.sort;
+      // names ascend first; numbers descend first (strongest on top)
+      resSort = resSort.key === key ? {key, dir: -resSort.dir} : {key, dir: key === "fullName" ? 1 : -1};
+      renderResultsBody();
+    };
+  });
+  body.querySelectorAll("[data-sel]").forEach(cb => {
+    cb.onchange = () => {
+      const login = cb.dataset.sel;
+      if (cb.checked){
+        if (resSelected.size >= RES_MAX_OVERLAY){
+          cb.checked = false;
+          alert(`На одну звезду можно наложить не больше ${RES_MAX_OVERLAY} сотрудников — иначе линии сливаются.`);
+          return;
+        }
+        resSelected.add(login);
+      } else resSelected.delete(login);
+      renderResultsBody();
+    };
+  });
+  const avg = document.getElementById("resAvg");
+  if (avg) avg.onchange = () => { resShowAvg = avg.checked; renderResultsBody(); };
+  const clr = document.getElementById("resClearSel");
+  if (clr) clr.onclick = () => { resSelected = new Set(); renderResultsBody(); };
+  const csv = document.getElementById("resExportCsv");
+  if (csv) csv.onclick = () => {
+    const out = [["ФИО","Логин","Попыток","Общий %", ...COMPETENCY_TAGS.map(t => TAG_LABELS[t] + " %")]];
+    rows.forEach(r => out.push([r.fullName, r.login, r.attempts, r.overall == null ? "" : r.overall.toFixed(1), ...COMPETENCY_TAGS.map(t => r[t] == null ? "" : r[t].toFixed(1))]));
+    downloadCSV(out, resFilterTest ? `competencies_${resFilterTest}.csv` : "competencies_all.csv");
+  };
+  body.querySelectorAll("[data-star]").forEach(btn => {
+    btn.onclick = () => { resOpenAttempt = resOpenAttempt === btn.dataset.star ? null : btn.dataset.star; renderResultsBody(); };
+  });
+}
 
 function renderUserDetail(login, u){
   const box = document.getElementById("userDetail");
