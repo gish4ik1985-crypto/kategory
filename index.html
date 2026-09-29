@@ -280,6 +280,9 @@ function shuffle(arr){
   for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
   return a;
 }
+// Employee exports carry no per-question review (questions + correct answers), so the bank
+// cannot be lifted from a downloaded file; the admin gets the full record from the server.
+function stripDetails(r){ return {...r, details: []}; }
 function downloadJSON(obj, filename){
   const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
@@ -1018,7 +1021,7 @@ function renderDashboard(){
   appEl.querySelectorAll("[data-export]").forEach(el => {
     el.onclick = () => {
       const r = results.find(x => x.id === el.dataset.export);
-      downloadJSON([r], `attestation_result_${r.login}_${r.testId}_${r.id}.json`);
+      downloadJSON([stripDetails(r)], `attestation_result_${r.login}_${r.testId}_${r.id}.json`);
     };
   });
   appEl.querySelectorAll("[data-resend]").forEach(el => {
@@ -1034,7 +1037,7 @@ function renderDashboard(){
     };
   });
   const exportAllBtn = document.getElementById("exportAll");
-  if (exportAllBtn) exportAllBtn.onclick = () => downloadJSON(results, `attestation_results_${s.login}_all.json`);
+  if (exportAllBtn) exportAllBtn.onclick = () => downloadJSON(results.map(stripDetails), `attestation_results_${s.login}_all.json`);
 }
 
 // ---------- TEST TAKING ----------
@@ -1299,7 +1302,7 @@ function renderResult(){
     </div>
   `;
   document.getElementById("btnToDash").onclick = () => { route="dashboard"; render(); };
-  document.getElementById("btnExportOne").onclick = () => downloadJSON([r], `attestation_result_${r.login}_${r.testId}_${r.id}.json`);
+  document.getElementById("btnExportOne").onclick = () => downloadJSON([stripDetails(r)], `attestation_result_${r.login}_${r.testId}_${r.id}.json`);
 }
 
 // ---------- ADMIN ----------
