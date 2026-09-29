@@ -560,7 +560,7 @@ async function deleteResultFromServer(id){
   }
 }
 
-async function pullResultsFromServer(){
+async function pullResultsFromServer(onlyLogin){
   const cfg = getSyncConfig();
   if (!cfg.url) return {ok:false, reason:"not-configured"};
   try {
@@ -573,8 +573,9 @@ async function pullResultsFromServer(){
     let imported = 0;
     (data.results || []).forEach(raw => {
       if (!raw || !raw.id || ids.has(raw.id) || deletedIds.has(raw.id)) return;
+      if (onlyLogin && String(raw.login) !== String(onlyLogin)) return; // employee: only their own history
       const rec = {
-        id: raw.id, login: raw.login, fullName: raw.fullName, testId: raw.testId,
+        id: raw.id, login: String(raw.login), fullName: raw.fullName, testId: raw.testId,
         testLabel: raw.testLabel, label: raw.label, group: raw.group, groupLabel: raw.groupLabel,
         dateISO: raw.dateISO, totalQuestions: Number(raw.totalQuestions), correctCount: Number(raw.correctCount),
         percent: Number(raw.percent), bandLabel: raw.bandLabel, durationSec: Number(raw.durationSec),
@@ -823,6 +824,8 @@ function renderLogin(){
       setSession({login: p.login, fullName: p.fullName, role: p.role || DEFAULT_ROLE_ID});
       pushProfileToServer(p); // keeps the admin's server-side Users list current, incl. accounts created before this synced
       refreshRoleFromServer(p.login);
+      // history of a login that was used on another computer isn't stored here yet
+      if (syncConfigured()) pullResultsFromServer(p.login).then(r => { if (r.ok && r.imported > 0 && route === "dashboard") render(); });
       postAuthRoute(p.fullName);
       render();
     } else {
