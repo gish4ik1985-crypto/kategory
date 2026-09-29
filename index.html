@@ -2078,80 +2078,162 @@ const TAG_LABEL_LINES = {
 };
 // Distinct series colors for overlaying several people on one star (comparison mode).
 const RADAR_SERIES_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"];
-function tagPct(stats, tag){ const s = stats && stats[tag]; return s && s.total ? s.correct/s.total*100 : null; }
+function tagPct(stats, key){ const s = stats && stats[key]; return s && s.total ? s.correct/s.total*100 : null; }
 
-// Accepts either a single stats object ({tag:{total,correct}}) — the per-person star — or an
-// array of series [{stats, color, name, dashed}] for the comparison overlay. With one series
-// the axis labels carry that series' percentages; with several, the percentages live in the
-// legend/table instead (five numbers per axis would be unreadable).
-function renderCompetencyRadarSVG(input){
-  const series = Array.isArray(input) ? input : [{stats: input, color: "var(--accent)"}];
+// ---------- generic radar (any number of axes) ----------
+// axes:   [{key, lines: [label lines], full?: tooltip text}]
+// series: [{stats: {key:{total,correct}}, color, name, dashed}]
+// One series -> each axis label carries that series' percentage; several -> the numbers live
+// in the legend/table instead (several numbers per axis would be unreadable).
+function renderRadarGeneric(axes, series){
   const single = series.length === 1;
-  const n = COMPETENCY_TAGS.length;
-  // Wide viewBox (not square) so the side vertices have real horizontal room for their
-  // label columns without extending past x=0 / x=W and getting silently clipped by the
-  // SVG's own edge (an SVG root clips anything outside its viewBox by default).
-  const W = 460, H = 340, cx = W/2, cy = 160, R = 95;
+  const n = axes.length;
+  // Geometry grows with the axis count. The viewBox is wider than tall and sized so the side
+  // vertices have real horizontal room for their label columns — an SVG root clips anything
+  // outside its viewBox, which is how labels used to get cut off.
+  const big = n > 6;
+  const W = big ? 680 : 460, H = big ? 470 : 340, R = big ? 130 : 95;
+  const cx = W/2, cy = big ? 235 : 160;
   const angle = i => -Math.PI/2 + i * (2*Math.PI/n);
   const rings = [20,40,60,80,100].map(pct => {
     const r = R*pct/100;
-    const ringPts = COMPETENCY_TAGS.map((_, i) => { const a = angle(i); return `${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`; }).join(" ");
-    return `<polygon points="${ringPts}" fill="none" stroke="var(--border)" stroke-width="1"/>`;
+    const pts = axes.map((_, i) => { const a = angle(i); return `${(cx+r*Math.cos(a)).toFixed(1)},${(cy+r*Math.sin(a)).toFixed(1)}`; }).join(" ");
+    return `<polygon points="${pts}" fill="none" stroke="var(--border)" stroke-width="1"/>`;
   }).join("");
-  const axes = COMPETENCY_TAGS.map((_, i) => { const a = angle(i); return `<line x1="${cx}" y1="${cy}" x2="${cx+R*Math.cos(a)}" y2="${cy+R*Math.sin(a)}" stroke="var(--border)" stroke-width="1"/>`; }).join("");
+  const axesLines = axes.map((_, i) => { const a = angle(i); return `<line x1="${cx}" y1="${cy}" x2="${(cx+R*Math.cos(a)).toFixed(1)}" y2="${(cy+R*Math.sin(a)).toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`; }).join("");
   const shapes = series.map(ser => {
-    const pts = COMPETENCY_TAGS.map((tag, i) => {
-      const r = R * (tagPct(ser.stats, tag) || 0)/100;
+    const pts = axes.map((ax, i) => {
+      const r = R * (tagPct(ser.stats, ax.key) || 0)/100;
       const a = angle(i);
       return {x: cx + r*Math.cos(a), y: cy + r*Math.sin(a)};
     });
     const poly = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-    const fillOp = single ? 0.22 : 0.08;
     const dash = ser.dashed ? ` stroke-dasharray="5 4"` : "";
-    return `<polygon points="${poly}" fill="${ser.color}" fill-opacity="${ser.dashed ? 0 : fillOp}" stroke="${ser.color}" stroke-width="2"${dash}/>` +
+    return `<polygon points="${poly}" fill="${ser.color}" fill-opacity="${ser.dashed ? 0 : (single ? 0.22 : 0.08)}" stroke="${ser.color}" stroke-width="2"${dash}/>` +
       pts.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${single ? 3.5 : 3}" fill="${ser.color}"/>`).join("");
   }).join("");
-  const labels = COMPETENCY_TAGS.map((tag, i) => {
+  const labels = axes.map((ax, i) => {
     const a = angle(i);
-    const lr = R + 24;
+    const lr = R + 22;
     const x = cx + lr*Math.cos(a), y = cy + lr*Math.sin(a);
-    const anchor = Math.cos(a) > 0.15 ? "start" : (Math.cos(a) < -0.15 ? "end" : "middle");
-    const lines = TAG_LABEL_LINES[tag];
-    // Stack the label's line(s) then (single-series only) the value line downward from the
-    // anchor point, each as its own <text> (simpler than <tspan>, just as clip-safe).
+    const cos = Math.cos(a);
+    const anchor = cos > 0.15 ? "start" : (cos < -0.15 ? "end" : "middle");
+    const lines = ax.lines;
+    // Lines are stacked downward from the anchor point, each as its own <text>. On the upper
+    // half the block is shifted up by its height so it grows away from the chart instead of
+    // into it (top labels used to overlap the outer ring).
+    const blockH = (lines.length + (single ? 1 : 0)) * 14;
+    const y0 = Math.sin(a) < -0.2 ? y - blockH + 14 : y;
+    const tip = ax.full ? `<title>${escapeHtml(ax.full)}</title>` : "";
     const textLines = lines.map((line, li) =>
-      `<text x="${x.toFixed(1)}" y="${(y+li*14).toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="12" fill="var(--text)">${escapeHtml(line)}</text>`
+      `<text x="${x.toFixed(1)}" y="${(y0+li*14).toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="12" fill="var(--text)">${tip}${escapeHtml(line)}</text>`
     ).join("");
     if (!single) return textLines;
-    const pct = tagPct(series[0].stats, tag);
+    const pct = tagPct(series[0].stats, ax.key);
     const valueStr = pct == null ? "нет данных" : `${pct.toFixed(0)}%`;
-    const valueY = y + lines.length*14;
-    return `${textLines}<text x="${x.toFixed(1)}" y="${valueY.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="11" fill="var(--muted)">${valueStr}</text>`;
+    return `${textLines}<text x="${x.toFixed(1)}" y="${(y0+lines.length*14).toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="11" fill="var(--muted)">${valueStr}</text>`;
   }).join("");
   const legend = single ? "" : `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:center;margin-top:8px;font-size:13px;">` +
     series.map(ser => `<span style="display:inline-flex;align-items:center;gap:6px;"><span style="display:inline-block;width:18px;height:0;border-top:3px ${ser.dashed ? "dashed" : "solid"} ${ser.color};"></span>${escapeHtml(ser.name || "")}</span>`).join("") +
     `</div>`;
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:560px;display:block;margin:0 auto;">
-    ${rings}${axes}${shapes}${labels}
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${big ? 720 : 560}px;display:block;margin:0 auto;">
+    ${rings}${axesLines}${shapes}${labels}
   </svg>${legend}`;
 }
 
+// Five-competency star (the "общий портрет"): accepts one stats object or an array of series.
+const COMPETENCY_AXES = COMPETENCY_TAGS.map(t => ({key: t, lines: TAG_LABEL_LINES[t]}));
+function renderCompetencyRadarSVG(input){
+  const series = Array.isArray(input) ? input : [{stats: input, color: "var(--accent)"}];
+  return renderRadarGeneric(COMPETENCY_AXES, series);
+}
+
+// ---------- "по темам": one axis per section of ONE test ----------
+// Sections are per-test and named differently across tests, so a topic star only makes sense
+// inside a single test — mixing tests would put "ЕСКД" and "Режимы резания" on one chart.
+// The data is already in every attempt (result.sections = [{title,total,correct}]), including
+// old ones, so no tagging or backfill is involved.
+function normSecTitle(t){ return String(t || "").replace(/^\d+\.\s*/, "").trim(); }
+// Short axis caption: the part before ":" ("Детали машин: расчёты повышенной сложности" ->
+// "Детали машин"); full title stays available as a tooltip.
+function shortSectionTitle(title){
+  const t = normSecTitle(title);
+  const head = t.split(":")[0].trim();
+  return head.length >= 3 ? head : t;
+}
+function wrapAxisLabel(text, maxLen = 18, maxLines = 3){
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = []; let cur = "";
+  words.forEach(w => {
+    if ((cur ? cur + " " + w : w).length <= maxLen) cur = cur ? cur + " " + w : w;
+    else { if (cur) lines.push(cur); cur = w; }
+  });
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines){
+    const kept = lines.slice(0, maxLines);
+    kept[maxLines-1] = kept[maxLines-1].replace(/.{0,1}$/, "") + "…";
+    return kept;
+  }
+  return lines.length ? lines : [""];
+}
+function computeSectionStats(attempts){
+  const st = {};
+  attempts.forEach(a => (a.sections || []).forEach(s => {
+    const k = normSecTitle(s.title);
+    const e = st[k] = st[k] || {total: 0, correct: 0, title: s.title};
+    e.total += Number(s.total) || 0;
+    e.correct += Number(s.correct) || 0;
+  }));
+  return st;
+}
+// Axes for a test's topic star: the bank's current section order first, then any extra
+// section titles that only exist in old attempts (a section since renamed). Axes with no
+// data in any of the given stats are dropped so a renamed section doesn't leave a dead spoke.
+function sectionAxesForTest(testId, statsList){
+  const t = getAllTests().find(x => x.id === testId);
+  const keys = [], titleOf = {};
+  if (t) t.sections.forEach(s => { const k = normSecTitle(s.title); if (!titleOf[k]){ keys.push(k); titleOf[k] = s.title; } });
+  statsList.forEach(st => Object.keys(st).forEach(k => { if (!titleOf[k]){ keys.push(k); titleOf[k] = st[k].title; } }));
+  return keys
+    .filter(k => statsList.some(st => st[k] && st[k].total))
+    .map(k => ({key: k, full: normSecTitle(titleOf[k]), lines: wrapAxisLabel(shortSectionTitle(titleOf[k]))}));
+}
+function renderTopicStar(testId, series){
+  const axes = sectionAxesForTest(testId, series.map(s => s.stats));
+  if (axes.length < 3) return `<p class="small muted">Для звезды по темам нужно хотя бы три раздела с данными (сейчас ${axes.length}).</p>`;
+  return renderRadarGeneric(axes, series);
+}
+
+// ---------- per-user star card (admin → Пользователи → Подробнее) ----------
 function renderCompetencyStarCard(login, u){
   const box = document.getElementById("starBox-" + cssEscape(login));
   if (!box) return;
-  const tagIndex = buildQuestionTagIndex();
-  const stats = computeUserTagStats(u.attempts, tagIndex);
-  const anyData = COMPETENCY_TAGS.some(t => stats[t] && stats[t].total);
-  if (!anyData){
-    box.innerHTML = `<p class="small muted">По попыткам этого пользователя пока нет данных с тегами компетенций (вопросы без тегов или тест был удалён из банка).</p>`;
-    return;
+  const tests = {};
+  u.attempts.forEach(a => { tests[a.testId] = `${a.testLabel} — ${a.label}`; });
+  const view = box.dataset.view || "comp";
+  const optsHtml = `<option value="comp" ${view === "comp" ? "selected" : ""}>По компетенциям (все тесты)</option>` +
+    Object.keys(tests).map(id => `<option value="${escapeHtml(id)}" ${view === id ? "selected" : ""}>По темам: ${escapeHtml(tests[id])}</option>`).join("");
+  let chart;
+  if (view === "comp"){
+    const stats = computeUserTagStats(u.attempts, buildQuestionTagIndex());
+    const any = COMPETENCY_TAGS.some(t => stats[t] && stats[t].total);
+    if (!any) chart = `<p class="small muted">По попыткам этого пользователя пока нет данных с тегами компетенций (вопросы без тегов или тест был удалён из банка).</p>`;
+    else {
+      const noData = COMPETENCY_TAGS.filter(t => !stats[t] || !stats[t].total);
+      chart = renderCompetencyRadarSVG(stats) +
+        `<p class="small muted" style="text-align:center;margin-top:8px;">Звезда построена по всем попыткам этого пользователя (${u.attempts.length}). Для попыток без сохранённых тегов теги подобраны по текущему банку вопросов — если вопрос с тех пор изменился или тест удалён, он может не попасть в подсчёт.</p>` +
+        (noData.length ? `<p class="small muted" style="text-align:center;">Без данных: ${noData.map(t => escapeHtml(TAG_LABELS[t])).join(", ")}.</p>` : "");
+    }
+  } else {
+    const list = u.attempts.filter(a => a.testId === view);
+    chart = renderTopicStar(view, [{stats: computeSectionStats(list), color: "var(--accent)"}]) +
+      `<p class="small muted" style="text-align:center;margin-top:8px;">По темам теста, сумма по всем попыткам этого теста (${list.length}). Подсказка с полным названием раздела — при наведении на подпись.</p>`;
   }
-  const noDataTags = COMPETENCY_TAGS.filter(t => !stats[t] || !stats[t].total);
   box.innerHTML = `
-    ${renderCompetencyRadarSVG(stats)}
-    <p class="small muted" style="text-align:center;margin-top:8px;">Звезда построена по всем ${u.attempts.length} попытк${u.attempts.length===1?"е":(u.attempts.length<5?"ам":"ам")} этого пользователя. Для попыток без сохранённых тегов теги подобраны по текущему банку вопросов — если вопрос с тех пор изменился или тест удалён, он может не попасть в подсчёт.</p>
-    ${noDataTags.length ? `<p class="small muted" style="text-align:center;">Без данных: ${noDataTags.map(t => escapeHtml(TAG_LABELS[t])).join(", ")}.</p>` : ""}
-  `;
+    <div style="max-width:420px;margin:0 auto 10px;"><select id="starView-${cssEscape(login)}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px;">${optsHtml}</select></div>
+    ${chart}`;
+  const sel = document.getElementById("starView-" + cssEscape(login));
+  sel.onchange = () => { box.dataset.view = sel.value; renderCompetencyStarCard(login, u); };
 }
 // CSS.escape polyfill-free minimal helper for using a login as a DOM id fragment.
 function cssEscape(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g, c => "_" + c.charCodeAt(0) + "_"); }
@@ -2159,6 +2241,7 @@ function cssEscape(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g, c => "_" + c.
 // ---------- admin tab "Результаты": per-attempt stars + people comparison ----------
 // Plain module state (not persisted in nav state) — filters reset on reload, which is fine
 // for an analysis view.
+let resMode = "comp";            // "comp" = five competencies | "topics" = sections of one test
 let resFilterTest = "";          // "" = all tests
 let resSearch = "";
 let resSort = {key: "fullName", dir: 1};
@@ -2177,7 +2260,11 @@ function renderAdminResults(content){
   content.innerHTML = `
     <div class="card">
       <h2>Результаты</h2>
-      <p class="small muted">Звезда компетенций по отдельным попыткам и сравнение сотрудников между собой. Видно только администратору. Для попыток, пройденных до разметки вопросов тегами, теги подбираются по текущему банку вопросов.</p>
+      <p class="small muted">Звезда по отдельным попыткам и сравнение сотрудников между собой. Видно только администратору. Для попыток, пройденных до разметки вопросов тегами, теги подбираются по текущему банку вопросов.</p>
+      <div class="row" style="gap:8px;margin-bottom:12px;">
+        <button class="btn ${resMode === "comp" ? "" : "secondary"}" data-mode="comp">По компетенциям</button>
+        <button class="btn ${resMode === "topics" ? "" : "secondary"}" data-mode="topics">По темам теста</button>
+      </div>
       <div class="row" style="gap:12px;flex-wrap:wrap;align-items:flex-end;">
         <div style="min-width:260px;flex:1;">
           <label for="resTest">Тест</label>
@@ -2190,9 +2277,15 @@ function renderAdminResults(content){
           <input type="text" id="resSearch" value="${escapeHtml(resSearch)}" style="margin-bottom:0;">
         </div>
       </div>
+      <p class="small muted" style="margin:10px 0 0;">${resMode === "comp"
+        ? "«По компетенциям» — пять общих направлений (инженерия, управление, взаимодействие, качество и риски, экономика): можно сравнивать людей из разных тестов."
+        : "«По темам теста» — разделы выбранного теста (например ЕСКД, допуски, гидравлика): подробнее, но только в рамках одного теста — выберите его выше."}</p>
     </div>
     <div id="resBody"></div>`;
-  document.getElementById("resTest").onchange = e => { resFilterTest = e.target.value; resOpenAttempt = null; renderResultsBody(); };
+  content.querySelectorAll("[data-mode]").forEach(b => {
+    b.onclick = () => { resMode = b.dataset.mode; resSort = {key: "fullName", dir: 1}; resOpenAttempt = null; renderAdminResults(content); };
+  });
+  document.getElementById("resTest").onchange = e => { resFilterTest = e.target.value; resOpenAttempt = null; resSort = {key: "fullName", dir: 1}; renderResultsBody(); };
   document.getElementById("resSearch").oninput = e => { resSearch = e.target.value; renderResultsBody(); };
   renderResultsBody();
 }
@@ -2204,6 +2297,13 @@ function renderResultsBody(){
   const q = resSearch.trim().toLowerCase();
   const matches = r => !q || String(r.fullName || "").toLowerCase().includes(q) || String(r.login || "").toLowerCase().includes(q);
   const attempts = loadResults().filter(r => (!resFilterTest || r.testId === resFilterTest) && matches(r));
+  const topics = resMode === "topics";
+
+  // Topic mode needs exactly one test, otherwise sections from different tests would mix.
+  if (topics && !resFilterTest){
+    body.innerHTML = `<div class="card"><p class="muted small">Выберите конкретный тест в списке выше — звезда «по темам» строится по разделам одного теста.</p></div>`;
+    return;
+  }
 
   // ---- people comparison ----
   const byLogin = {};
@@ -2211,13 +2311,17 @@ function renderResultsBody(){
   const rows = Object.keys(byLogin).map(login => {
     const list = byLogin[login];
     const latest = list.slice().sort((a,b) => b.dateISO.localeCompare(a.dateISO))[0];
-    const stats = computeUserTagStats(list, tagIndex);
+    const stats = topics ? computeSectionStats(list) : computeUserTagStats(list, tagIndex);
     const tot = list.reduce((n, a) => n + (a.totalQuestions || 0), 0);
     const cor = list.reduce((n, a) => n + (a.correctCount || 0), 0);
-    const row = {login, fullName: latest.fullName || login, attempts: list.length, overall: tot ? cor/tot*100 : null, stats};
-    COMPETENCY_TAGS.forEach(t => { row[t] = tagPct(stats, t); });
-    return row;
+    return {login, fullName: latest.fullName || login, attempts: list.length, overall: tot ? cor/tot*100 : null, stats};
   });
+  // Columns / axes: five competencies, or the test's sections that have data.
+  const cols = topics
+    ? sectionAxesForTest(resFilterTest, rows.map(r => r.stats)).map(ax => ({key: ax.key, label: (l => l.length > 22 ? l.slice(0, 21).trimEnd() + "…" : l)(shortSectionTitle(ax.full)), full: ax.full, axis: ax}))
+    : COMPETENCY_TAGS.map(t => ({key: t, label: TAG_SHORT_LABELS[t], full: TAG_LABELS[t], axis: {key: t, lines: TAG_LABEL_LINES[t]}}));
+  rows.forEach(r => cols.forEach(c => { r["c:" + c.key] = tagPct(r.stats, c.key); }));
+
   const k = resSort.key, dir = resSort.dir;
   rows.sort((a,b) => {
     const va = a[k], vb = b[k];
@@ -2228,21 +2332,20 @@ function renderResultsBody(){
     if (vb == null) return -1;
     return dir * (va - vb);
   });
-  // drop selections that are no longer visible under the current filter
   const visible = new Set(rows.map(r => r.login));
   resSelected = new Set([...resSelected].filter(l => visible.has(l)));
 
   const pctCell = v => v == null ? `<span class="small muted">—</span>` : `<span class="pill ${bandFor(v).cls}">${v.toFixed(0)}%</span>`;
-  const sortHead = (key, label) => {
+  const sortHead = (key, label, full) => {
     const arrow = resSort.key === key ? (resSort.dir === 1 ? " ▲" : " ▼") : "";
-    return `<th data-sort="${key}" style="cursor:pointer;white-space:nowrap;">${escapeHtml(label)}${arrow}</th>`;
+    return `<th data-sort="${escapeHtml(key)}" title="${escapeHtml(full || label)}" style="cursor:pointer;white-space:nowrap;">${escapeHtml(label)}${arrow}</th>`;
   };
   const tableRows = rows.map(r => `<tr>
       <td><input type="checkbox" data-sel="${escapeHtml(r.login)}" ${resSelected.has(r.login) ? "checked" : ""}></td>
       <td>${escapeHtml(r.fullName)} <span class="small muted">(${escapeHtml(r.login)})</span></td>
       <td>${r.attempts}</td>
       <td>${pctCell(r.overall)}</td>
-      ${COMPETENCY_TAGS.map(t => `<td>${pctCell(r[t])}</td>`).join("")}
+      ${cols.map(c => `<td>${pctCell(r["c:" + c.key])}</td>`).join("")}
     </tr>`).join("");
 
   // ---- overlay star ----
@@ -2253,17 +2356,21 @@ function renderResultsBody(){
     // Pooled (question-weighted) average over everyone in the current filter, not a mean
     // of per-person percentages — someone with 3 attempts weighs more than someone with 1.
     const pooled = {};
-    rows.forEach(r => COMPETENCY_TAGS.forEach(t => {
-      const s = r.stats[t]; if (!s) return;
-      const p = pooled[t] = pooled[t] || {total:0, correct:0};
+    rows.forEach(r => cols.forEach(c => {
+      const s = r.stats[c.key]; if (!s) return;
+      const p = pooled[c.key] = pooled[c.key] || {total:0, correct:0};
       p.total += s.total; p.correct += s.correct;
     }));
     series.push({stats: pooled, color: "#647082", name: `Среднее по выборке (${rows.length} чел.)`, dashed: true});
   }
+  const drawStar = ser => topics ? (cols.length < 3
+    ? `<p class="small muted">Для звезды по темам нужно хотя бы три раздела с данными (сейчас ${cols.length}).</p>`
+    : renderRadarGeneric(cols.map(c => ({key: c.key, full: c.full, lines: c.axis.lines})), ser))
+    : renderRadarGeneric(COMPETENCY_AXES, ser);
   let overlayHtml;
   if (!series.length) overlayHtml = `<p class="small muted">Отметьте галочками до ${RES_MAX_OVERLAY} сотрудников в таблице выше, чтобы наложить их звёзды друг на друга.</p>`;
-  else if (series.length === 1 && !series[0].dashed) overlayHtml = renderCompetencyRadarSVG(series[0].stats) + `<p class="small muted" style="text-align:center;">${escapeHtml(series[0].name)}</p>`;
-  else overlayHtml = renderCompetencyRadarSVG(series);
+  else if (series.length === 1 && !series[0].dashed) overlayHtml = drawStar([{stats: series[0].stats, color: "var(--accent)"}]) + `<p class="small muted" style="text-align:center;">${escapeHtml(series[0].name)}</p>`;
+  else overlayHtml = drawStar(series);
 
   // ---- attempts list ----
   const attemptsSorted = attempts.slice().sort((a,b) => b.dateISO.localeCompare(a.dateISO));
@@ -2279,9 +2386,14 @@ function renderResultsBody(){
       <td><button class="btn ghost" data-star="${a.id}">${open ? "Скрыть" : "Звезда"}</button></td>
     </tr>`;
     if (open){
-      const st = computeUserTagStats([a], tagIndex);
-      const any = COMPETENCY_TAGS.some(t => st[t] && st[t].total);
-      row += `<tr><td colspan="5">${any ? renderCompetencyRadarSVG(st) : `<p class="small muted">Для этой попытки не нашлось вопросов с тегами (тест удалён или вопросы с тех пор изменены).</p>`}</td></tr>`;
+      let inner;
+      if (topics) inner = renderTopicStar(a.testId, [{stats: computeSectionStats([a]), color: "var(--accent)"}]);
+      else {
+        const st = computeUserTagStats([a], tagIndex);
+        inner = COMPETENCY_TAGS.some(t => st[t] && st[t].total) ? renderCompetencyRadarSVG(st)
+          : `<p class="small muted">Для этой попытки не нашлось вопросов с тегами (тест удалён или вопросы с тех пор изменены).</p>`;
+      }
+      row += `<tr><td colspan="5">${inner}</td></tr>`;
     }
     return row;
   }).join("");
@@ -2289,11 +2401,11 @@ function renderResultsBody(){
   body.innerHTML = `
     <div class="card">
       <h2>Сравнение сотрудников</h2>
-      <p class="small muted">${resFilterTest ? "Только попытки выбранного теста." : "Все попытки всех тестов."} Процент по компетенции — доля верных ответов на вопросы с этим тегом по всем попыткам человека в выборке. Нажмите на заголовок колонки для сортировки.</p>
+      <p class="small muted">${resFilterTest ? "Только попытки выбранного теста." : "Все попытки всех тестов."} Процент — доля верных ответов ${topics ? "по разделу теста" : "на вопросы с этим тегом"} по всем попыткам человека в выборке. Нажмите на заголовок колонки для сортировки.</p>
       ${rows.length ? `
       <div style="overflow-x:auto;"><table><thead><tr>
         <th></th>${sortHead("fullName","Сотрудник")}${sortHead("attempts","Попыток")}${sortHead("overall","Общий")}
-        ${COMPETENCY_TAGS.map(t => sortHead(t, TAG_SHORT_LABELS[t])).join("")}
+        ${cols.map(c => sortHead("c:" + c.key, c.label, c.full)).join("")}
       </tr></thead><tbody>${tableRows}</tbody></table></div>
       <div class="row" style="margin-top:10px;gap:14px;align-items:center;flex-wrap:wrap;">
         <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--text);font-size:13px;"><input type="checkbox" id="resAvg" ${resShowAvg ? "checked" : ""}> Показать среднее по выборке</label>
@@ -2335,9 +2447,9 @@ function renderResultsBody(){
   if (clr) clr.onclick = () => { resSelected = new Set(); renderResultsBody(); };
   const csv = document.getElementById("resExportCsv");
   if (csv) csv.onclick = () => {
-    const out = [["ФИО","Логин","Попыток","Общий %", ...COMPETENCY_TAGS.map(t => TAG_LABELS[t] + " %")]];
-    rows.forEach(r => out.push([r.fullName, r.login, r.attempts, r.overall == null ? "" : r.overall.toFixed(1), ...COMPETENCY_TAGS.map(t => r[t] == null ? "" : r[t].toFixed(1))]));
-    downloadCSV(out, resFilterTest ? `competencies_${resFilterTest}.csv` : "competencies_all.csv");
+    const out = [["ФИО","Логин","Попыток","Общий %", ...cols.map(c => c.full + " %")]];
+    rows.forEach(r => out.push([r.fullName, r.login, r.attempts, r.overall == null ? "" : r.overall.toFixed(1), ...cols.map(c => r["c:" + c.key] == null ? "" : r["c:" + c.key].toFixed(1))]));
+    downloadCSV(out, `${topics ? "topics" : "competencies"}_${resFilterTest || "all"}.csv`);
   };
   body.querySelectorAll("[data-star]").forEach(btn => {
     btn.onclick = () => { resOpenAttempt = resOpenAttempt === btn.dataset.star ? null : btn.dataset.star; renderResultsBody(); };
