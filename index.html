@@ -219,6 +219,21 @@ function bandFor(percent){
   if (percent >= 60) return {label:"Удовлетворительно (условно)", cls:"warn"};
   return {label:"Неудовлетворительно", cls:"bad"};
 }
+// Employee-facing feedback: which TOPICS to revisit, never which questions/answers were
+// wrong — full per-question review stays admin-only so the bank can't be memorised.
+function weakTopicsHtml(r){
+  const secs = (Array.isArray(r.sections) ? r.sections : []).filter(x => x && x.total > 0);
+  if (!secs.length) return "";
+  const weak = secs.filter(x => x.percent < 75).sort((a, b) => a.percent - b.percent);
+  if (!weak.length) return `<p class="small" style="color:var(--good);">Слабых тем не выявлено — все разделы выше 75%.</p>`;
+  const rows = weak.map(x => {
+    const sb = bandFor(x.percent);
+    const hint = x.percent < 60 ? "нужно повторить" : "стоит подтянуть";
+    return `<tr><td>${escapeHtml(x.title)}</td><td><span class="pill ${sb.cls}">${x.percent.toFixed(0)}%</span></td><td class="small muted">${hint}</td></tr>`;
+  }).join("");
+  return `<table><thead><tr><th>Тема</th><th>%</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="small muted" style="margin-top:8px;">Показаны темы с результатом ниже 75%. Разбор конкретных вопросов доступен только руководителю.</p>`;
+}
 const PASS_PERCENT = 60; // minimum "уд" (Удовлетворительно) grade required to unlock advanced testing
 
 // ---------- access levels: primary (kon_v2) -> advanced (kon_v1) gating ----------
@@ -959,11 +974,13 @@ function renderDashboard(){
           <td>${r.correctCount}/${r.totalQuestions} (${r.percent.toFixed(1)}%)</td>
           <td><span class="pill ${b.cls}">${b.label}</span></td>
           <td>
+            <button class="btn ghost" data-weak="${r.id}">Что повторить</button>
             <button class="btn ghost" data-export="${r.id}">Экспорт</button>
             ${syncConfigured() ? `<button class="btn ghost" data-resend="${r.id}">Отправить на сервер</button>` : ""}
             <span class="small muted" data-resend-status="${r.id}"></span>
           </td>
-        </tr>`;
+        </tr>
+        <tr data-weak-row="${r.id}" style="display:none;"><td colspan="5">${weakTopicsHtml(r)}</td></tr>`;
       }).join("") + `</tbody></table>`;
   }
 
@@ -991,6 +1008,12 @@ function renderDashboard(){
   });
   appEl.querySelectorAll(".test-tile[data-locked]").forEach(el => {
     el.onclick = () => alert("Продвинутое тестирование по этой категории пока недоступно: сначала нужно пройти первичное тестирование по той же категории с оценкой не ниже «удовлетворительно».");
+  });
+  appEl.querySelectorAll("[data-weak]").forEach(el => {
+    el.onclick = () => {
+      const row = appEl.querySelector(`[data-weak-row="${el.dataset.weak}"]`);
+      if (row) row.style.display = row.style.display === "none" ? "" : "none";
+    };
   });
   appEl.querySelectorAll("[data-export]").forEach(el => {
     el.onclick = () => {
@@ -1265,6 +1288,10 @@ function renderResult(){
     <div class="card">
       <h2>Результаты по разделам</h2>
       <table><thead><tr><th>Раздел</th><th>Верно</th><th>%</th></tr></thead><tbody>${sectionRows}</tbody></table>
+    </div>
+    <div class="card">
+      <h2>Что повторить</h2>
+      ${weakTopicsHtml(r)}
     </div>
     <div class="row">
       <button class="btn" id="btnToDash">В кабинет</button>
