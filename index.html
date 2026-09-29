@@ -2092,8 +2092,8 @@ function renderRadarGeneric(axes, series){
   // vertices have real horizontal room for their label columns — an SVG root clips anything
   // outside its viewBox, which is how labels used to get cut off.
   const big = n > 6;
-  const W = big ? 680 : 460, H = big ? 470 : 340, R = big ? 130 : 95;
-  const cx = W/2, cy = big ? 235 : 160;
+  const W = big ? 680 : 460, H = big ? 490 : 340, R = big ? 130 : 95;
+  const cx = W/2, cy = big ? 245 : 160;
   const angle = i => -Math.PI/2 + i * (2*Math.PI/n);
   const rings = [20,40,60,80,100].map(pct => {
     const r = R*pct/100;
@@ -2161,7 +2161,7 @@ function shortSectionTitle(title){
   const head = t.split(":")[0].trim();
   return head.length >= 3 ? head : t;
 }
-function wrapAxisLabel(text, maxLen = 18, maxLines = 3){
+function wrapAxisLabel(text, maxLen = 18, maxLines = 4){
   const words = String(text).split(/\s+/).filter(Boolean);
   const lines = []; let cur = "";
   words.forEach(w => {
