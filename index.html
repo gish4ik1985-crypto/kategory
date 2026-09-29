@@ -595,8 +595,12 @@ async function pullResultsFromServer(){
 // can see it from any browser. Fire-and-forget from the caller's point of view — a
 // failure here just means the admin won't see this account until the next successful
 // sync; the local login itself (LS_PROFILES) is unaffected either way.
-async function pushProfileToServer(profile){
+async function pushProfileToServer(profile, opts){
   const cfg = getSyncConfig();
+  // Only the admin's role dropdown (and registration) may write a role. Every other push
+  // omits it, so the server keeps what the admin set — otherwise a stale local copy
+  // (role "user") overwrote the admin's change the next time the employee logged in.
+  if (!(opts && opts.withRole)) { profile = {...profile}; delete profile.role; }
   if (!cfg.url) return {ok:false, reason:"not-configured"};
   try {
     await fetch(cfg.url, {
@@ -645,6 +649,27 @@ async function pullProfilesIntoLocalAuthStore(){
   } catch(e){
     return {ok:false, reason: String(e && e.message || e)};
   }
+}
+
+// The server is the source of truth for the role (admin sets it there). Adopt it into the
+// local profile + session right after login, then re-render if it changed.
+async function refreshRoleFromServer(login){
+  const cfg = getSyncConfig();
+  if (!cfg.url) return;
+  try {
+    const resp = await fetch(cfg.url + "?secret=" + encodeURIComponent(cfg.secret) + "&type=users");
+    const data = await resp.json();
+    if (!data.ok) return;
+    const raw = (data.users || []).find(u => u && u.login === login);
+    if (!raw || !raw.role) return;
+    const profiles = loadProfiles();
+    const i = profiles.findIndex(x => x.login === login);
+    if (i === -1 || profiles[i].role === raw.role) return;
+    profiles[i] = {...profiles[i], role: raw.role};
+    saveProfiles(profiles);
+    const s = getSession();
+    if (s && s.login === login){ setSession({...s, role: raw.role}); render(); }
+  } catch(e){}
 }
 
 async function pullProfilesFromServer(){
@@ -797,6 +822,7 @@ function renderLogin(){
       if (String(p.password) !== pass){ msg.textContent = "Неверный пароль для этого логина."; return; }
       setSession({login: p.login, fullName: p.fullName, role: p.role || DEFAULT_ROLE_ID});
       pushProfileToServer(p); // keeps the admin's server-side Users list current, incl. accounts created before this synced
+      refreshRoleFromServer(p.login);
       postAuthRoute(p.fullName);
       render();
     } else {
@@ -805,7 +831,7 @@ function renderLogin(){
       const p = {login, password: pass, fullName: "", role: DEFAULT_ROLE_ID, createdAt: new Date().toISOString()};
       profiles.push(p);
       saveProfiles(profiles);
-      pushProfileToServer(p);
+      pushProfileToServer(p, {withRole: true});
       setSession({login: p.login, fullName: p.fullName, role: p.role});
       postAuthRoute(p.fullName);
       render();
@@ -1777,7 +1803,7 @@ function renderAdminUsers(content){
       const localIdx = local.findIndex(p => p.login === login);
       if (localIdx !== -1){ local[localIdx] = {...local[localIdx], role: roleId}; saveProfiles(local); }
       const full = localIdx !== -1 ? local[localIdx] : (syncedIdx !== -1 ? synced[syncedIdx] : {login, role: roleId});
-      pushProfileToServer(full);
+      pushProfileToServer(full, {withRole: true});
     };
   });
 }
