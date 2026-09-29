@@ -631,15 +631,15 @@ async function pullProfilesIntoLocalAuthStore(){
     loadProfiles().forEach(p => { byLogin[p.login] = p; });
     (data.users || []).forEach(raw => {
       if (!raw || !raw.login) return;
-      const existing = byLogin[raw.login];
+      const existing = byLogin[String(raw.login)];
       const rawStamp = new Date(raw.updatedAt || raw.timestamp || 0).getTime();
       const existingStamp = existing ? new Date(existing.updatedAt || existing.timestamp || 0).getTime() : -1;
       if (existing && existingStamp >= rawStamp) return;
-      byLogin[raw.login] = {
+      byLogin[String(raw.login)] = {
         // A fully-numeric password comes back from Google Sheets as a JS number, not a
         // string (the sheet cell isn't formatted as text) — String() it here, or it'll
         // never match what the login form reads out of a text input (always a string).
-        login: raw.login, password: raw.password != null ? String(raw.password) : "", fullName: raw.fullName || "",
+        login: String(raw.login), password: raw.password != null ? String(raw.password) : "", fullName: raw.fullName || "",
         role: raw.role || DEFAULT_ROLE_ID,
         createdAt: raw.createdAt || "", updatedAt: raw.updatedAt || raw.timestamp || "",
       };
@@ -684,14 +684,14 @@ async function pullProfilesFromServer(){
     let imported = 0;
     (data.users || []).forEach(raw => {
       if (!raw || !raw.login) return;
-      const existing = byLogin[raw.login];
+      const existing = byLogin[String(raw.login)];
       // Keep whichever copy is newer (updatedAt/timestamp), so a stale pull never
       // clobbers a more recent one already cached locally.
       const rawStamp = new Date(raw.updatedAt || raw.timestamp || 0).getTime();
       const existingStamp = existing ? new Date(existing.updatedAt || existing.timestamp || 0).getTime() : -1;
       if (existing && existingStamp >= rawStamp) return;
-      byLogin[raw.login] = {
-        login: raw.login, password: raw.password != null ? String(raw.password) : "", fullName: raw.fullName || "",
+      byLogin[String(raw.login)] = {
+        login: String(raw.login), password: raw.password != null ? String(raw.password) : "", fullName: raw.fullName || "",
         role: raw.role || DEFAULT_ROLE_ID,
         createdAt: raw.createdAt || "", updatedAt: raw.updatedAt || raw.timestamp || "",
       };
