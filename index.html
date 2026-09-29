@@ -238,7 +238,10 @@ function hasFullAccess(profile){
 }
 // Advanced test id "kon_v1_cat3" -> its primary-test counterpart "kon_v2_cat3".
 function primaryTestIdFor(advancedTestId){
-  return advancedTestId.replace(/^kon_v1_/, "kon_v2_");
+  // Built-in tests: kon_v1_catN -> kon_v2_catN. Admin-uploaded pairs are named
+  // custom_..._продвинутое_тестирование / custom_..._первичное_тестирование — without this
+  // second rule the advanced one mapped to ITSELF and stayed locked until passed.
+  return advancedTestId.replace(/^kon_v1_/, "kon_v2_").replace(/_продвинутое_тестирование$/, "_первичное_тестирование");
 }
 function hasPassedPrimary(loginResults, advancedTestId){
   const primaryId = primaryTestIdFor(advancedTestId);
@@ -249,6 +252,12 @@ function hasPassedPrimary(loginResults, advancedTestId){
 function isTestLocked(test, profile, loginResults){
   if (test.group !== "kon_v1") return false; // gating only applies to advanced testing
   if (hasFullAccess(profile)) return false;
+  // If the admin opened advanced testing for this role WITHOUT the matching primary test,
+  // there is no way to "pass primary first" — gating would lock it forever and its lock
+  // note would reveal that a primary test exists. Gate only when primary is visible too.
+  const primaryId = primaryTestIdFor(test.id);
+  const primaryVisible = getVisibleTestsForRole((profile && profile.role) || DEFAULT_ROLE_ID).some(t => t.id === primaryId);
+  if (!primaryVisible) return false;
   return !hasPassedPrimary(loginResults, test.id);
 }
 function shuffle(arr){
@@ -1347,10 +1356,14 @@ function renderAdminRoles(content){
           <input type="checkbox" class="role-test-cb" data-role="${escapeHtml(role.id)}" data-test="${escapeHtml(t.id)}" ${testIds.has(t.id) ? "checked" : ""}>
           ${escapeHtml(t.positionTitle)} — ${escapeHtml(t.label)}
         </label>`).join("");
+      const onCount = byGroup[g].filter(t => testIds.has(t.id)).length;
       return `
         <div style="margin-bottom:10px;">
-          <div class="small" style="font-weight:600;">${escapeHtml(meta.title)}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:4px 20px;">${boxes}</div>
+          <label class="small" style="display:flex;align-items:center;gap:6px;font-weight:600;">
+            <input type="checkbox" class="role-group-cb" data-role="${escapeHtml(role.id)}" data-group="${escapeHtml(g)}" data-count="${onCount}" data-total="${byGroup[g].length}" ${onCount === byGroup[g].length ? "checked" : ""}>
+            ${escapeHtml(meta.title)} <span class="muted" style="font-weight:400;">— весь раздел</span>
+          </label>
+          <div style="display:flex;flex-wrap:wrap;gap:4px 20px;padding-left:22px;">${boxes}</div>
         </div>`;
     }).join("");
 
@@ -1366,7 +1379,7 @@ function renderAdminRoles(content){
         </div>
         ${isAdminRole
           ? `<p class="small muted" style="margin:8px 0 0;">Видит все тесты автоматически (как «Соловьев Евгений») и показывает кнопку «Админ» в шапке — список тестов ниже на это не влияет, настраивать не нужно.</p>`
-          : `<div class="small muted" style="margin:8px 0 4px;">Видимые тесты:</div>${groupedChecksHtml}`}
+          : `<div class="small muted" style="margin:8px 0 4px;">Видимые тесты (если снять весь раздел — сотрудник этой роли не увидит и саму папку раздела):</div>${groupedChecksHtml}`}
       </div>`;
   }).join("");
 
@@ -1382,6 +1395,36 @@ function renderAdminRoles(content){
   // Optimistic update: ROLES is changed in-memory immediately (the checkbox already
   // reflects the click visually), then enqueueRolesSave serialises the network writes
   // so rapid clicks never race and overwrite each other on the server.
+  // A group ("folder") is shown on the employee dashboard only if the role sees at least
+  // one test in it — so switching a whole group off here hides the folder itself, and
+  // employees can't tell which other sections exist. Indeterminate = some tests on.
+  const refreshGroupBoxes = () => {
+    content.querySelectorAll(".role-group-cb").forEach(gcb => {
+      const tests = [...content.querySelectorAll(`.role-test-cb[data-role="${gcb.dataset.role}"]`)]
+        .filter(cb => byGroupOf(cb.dataset.test) === gcb.dataset.group);
+      const on = tests.filter(cb => cb.checked).length;
+      gcb.checked = tests.length > 0 && on === tests.length;
+      gcb.indeterminate = on > 0 && on < tests.length;
+    });
+  };
+  const byGroupOf = testId => (allTestsList.find(t => t.id === testId) || {}).group;
+  refreshGroupBoxes();
+  content.querySelectorAll(".role-group-cb").forEach(gcb => {
+    gcb.onchange = () => {
+      const roles = ROLES.map(r => ({...r, testIds: [...(r.testIds || [])]}));
+      const role = roles.find(r => r.id === gcb.dataset.role);
+      if (!role) return;
+      const ids = allTestsList.filter(t => t.group === gcb.dataset.group).map(t => t.id);
+      if (gcb.checked) ids.forEach(id => { if (!role.testIds.includes(id)) role.testIds.push(id); });
+      else role.testIds = role.testIds.filter(id => !ids.includes(id));
+      ROLES = roles;
+      content.querySelectorAll(`.role-test-cb[data-role="${gcb.dataset.role}"]`).forEach(cb => {
+        if (ids.includes(cb.dataset.test)) cb.checked = gcb.checked;
+      });
+      refreshGroupBoxes();
+      enqueueRolesSave();
+    };
+  });
   content.querySelectorAll(".role-test-cb").forEach(cb => {
     cb.onchange = () => {
       const roles = ROLES.map(r => ({...r, testIds: [...(r.testIds || [])]}));
@@ -1391,6 +1434,7 @@ function renderAdminRoles(content){
       if (cb.checked){ if (!role.testIds.includes(testId)) role.testIds.push(testId); }
       else { role.testIds = role.testIds.filter(id => id !== testId); }
       ROLES = roles;
+      refreshGroupBoxes();
       enqueueRolesSave(); // no rerender — checkbox visual state is already correct
     };
   });
